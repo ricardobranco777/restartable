@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"golang.org/x/sys/unix"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -39,6 +40,40 @@ func isFile(path string) bool {
 	return false
 }
 
+func readFile(dirFd int, path string) ([]byte, error) {
+	fd, err := unix.Openat(dirFd, path, unix.O_NOFOLLOW, unix.O_RDONLY)
+	if err != nil {
+		return []byte{}, err
+	}
+	defer unix.Close(fd)
+
+	data := make([]byte, 0, 1024)
+	for {
+		if len(data) >= cap(data) {
+			d := append(data[:cap(data)], 0)
+			data = d[:len(data)]
+		}
+		n, err := unix.Read(fd, data[len(data):cap(data)])
+		if n > 0 {
+			data = data[:len(data)+n]
+		} else {
+			return data, err
+		}
+	}
+}
+
+func readLink(dirFd int, path string) (string, error) {
+	for size := unix.PathMax; ; size *= 2 {
+		data := make([]byte, unix.PathMax)
+		n, err := unix.Readlinkat(dirFd, path, data)
+		if err != nil {
+			return "", err
+		} else if n != size {
+			return string(data[:n]), err
+		}
+	}
+}
+
 func getUser(uid int) (username string) {
 	if _, ok := usernames[uid]; ok {
 		username = usernames[uid]
@@ -54,8 +89,8 @@ func getUser(uid int) (username string) {
 	return username
 }
 
-func getDeleted(pid string) (files []string) {
-	maps, err := os.ReadFile(filepath.Join("/proc/", pid, "maps"))
+func getDeleted(dirFd int, pid string) (files []string) {
+	maps, err := readFile(dirFd, filepath.Join("/proc/", pid, "maps"))
 	if err != nil {
 		return
 	}
@@ -76,8 +111,8 @@ func getDeleted(pid string) (files []string) {
 	return
 }
 
-func getService(pid string) (service string) {
-	cgroup, err := os.ReadFile(filepath.Join("/proc/", pid, "cgroup"))
+func getService(dirFd int, pid string) (service string) {
+	cgroup, err := readFile(dirFd, filepath.Join("/proc/", pid, "cgroup"))
 	if err != nil {
 		return "-"
 	}
@@ -100,13 +135,18 @@ func getService(pid string) (service string) {
 
 func getInfo(pidInt int) (info *proc, err error) {
 	pid := strconv.Itoa(pidInt)
+	dirFd, err := unix.Open(filepath.Join("/proc", pid), unix.O_DIRECTORY|unix.O_PATH|unix.O_NOATIME, unix.O_RDONLY)
+	if err != nil {
+		return nil, err
+	}
+	defer unix.Close(dirFd)
 
-	files := getDeleted(pid)
+	files := getDeleted(dirFd, pid)
 	if len(files) == 0 {
 		return
 	}
 
-	data, err := os.ReadFile(filepath.Join("/proc/", pid, "status"))
+	data, err := readFile(dirFd, filepath.Join("/proc/", pid, "status"))
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +157,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 	ruid := regexp.MustCompile(`(?m)^Uid:\t([0-9]+)\t`)
 	uid, _ := strconv.Atoi(ruid.FindStringSubmatch(status)[1])
 
-	data, err = os.ReadFile(filepath.Join("/proc/", pid, "cmdline"))
+	data, err = readFile(dirFd, filepath.Join("/proc/", pid, "cmdline"))
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +169,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 		// Use full path
 
 		// cmdline is empty if zombie, but zombies have void proc.maps
-		exe, err := os.Readlink(filepath.Join("/proc", pid, "exe"))
+		exe, err := readLink(dirFd, filepath.Join("/proc", pid, "exe"))
 		if err != nil {
 			exe = ""
 		}
@@ -170,7 +210,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 		deleted: files,
 		ppid:    ppid.FindStringSubmatch(status)[1],
 		uid:     uid,
-		service: getService(pid),
+		service: getService(dirFd, pid),
 	}, nil
 }
 
