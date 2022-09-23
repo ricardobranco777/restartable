@@ -9,6 +9,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -260,6 +261,7 @@ func printInfoAll(dir string) error {
 		if proc == nil {
 			continue
 		}
+		//close(channel[pid])
 		if opts.short < 3 {
 			fmt.Printf("%d\t%s\t%d\t%-20s\t%20s\t%s\n", pid, proc.ppid, proc.uid, getUser(proc.uid), proc.service, proc.command)
 		} else if proc.service != "-" {
@@ -292,6 +294,15 @@ func init() {
 	flag.StringVarP(&opts.proc, "proc", "P", "/proc", "proc directory")
 	flag.CountVarP(&opts.short, "short", "s", "Create a short table not showing the deleted files. Given twice, show only processes which are associated with a system service. Given three times, list the associated system service names only.")
 	flag.Parse()
+
+	// NOTE: This is no longer needed on Go 1.19+ but runtime.Version() sucks
+	var limits unix.Rlimit
+	if err := unix.Getrlimit(unix.RLIMIT_NOFILE, &limits); err != nil && limits.Cur != limits.Max {
+		limits.Cur = limits.Max
+		if err = unix.Setrlimit(unix.RLIMIT_NOFILE, &limits); err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+		}
+	}
 }
 
 func main() {
