@@ -29,6 +29,7 @@ var usernames map[int]string
 
 var opts struct {
 	proc    string
+	quote   bool
 	short   int
 	verbose bool
 }
@@ -47,6 +48,14 @@ var regex = struct {
 	regexp.MustCompile(`(?m)^Uid:\t([0-9]+)\t`),
 	regexp.MustCompile(`\d+:(?:name=systemd)?:/system\.slice/(?:.*/)?(.*)\.service$`),
 	regexp.MustCompile(`\d+:name=openrc:/(.*)$`),
+}
+
+func quoteString(str string) string {
+	if opts.quote {
+		return strconv.Quote(str)
+	} else {
+		return str
+	}
 }
 
 func isFile(path string) bool {
@@ -83,7 +92,7 @@ func readLink(dirFd int, path string) (string, error) {
 		if n, err := unix.Readlinkat(dirFd, path, data); err != nil {
 			return "", err
 		} else if n != size {
-			return string(data[:n]), err
+			return quoteString(string(data[:n])), err
 		}
 	}
 }
@@ -111,7 +120,7 @@ func getDeleted(dirFd int, pid string) (files []string) {
 	for _, str := range strings.Split(string(maps), "\n") {
 		file := regex.deleted.FindString(str)
 		if file != "" && regex.execmap.MatchString(str) && !regex.ignored.MatchString(str) {
-			files = append(files, strings.TrimSuffix(file, " (deleted)"))
+			files = append(files, quoteString(strings.TrimSuffix(file, " (deleted)")))
 		}
 	}
 	sort.Sort(sort.StringSlice(files))
@@ -208,7 +217,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 	}
 
 	return &proc{
-		command: command,
+		command: quoteString(command),
 		deleted: files,
 		ppid:    regex.ppid.FindStringSubmatch(status)[1],
 		uid:     uid,
@@ -290,9 +299,10 @@ func printInfoAll(dir string) error {
 }
 
 func init() {
-	flag.BoolVarP(&opts.verbose, "verbose", "v", false, "verbose output")
 	flag.StringVarP(&opts.proc, "proc", "P", "/proc", "proc directory")
+	flag.BoolVarP(&opts.quote, "quote", "Q", false, "quote filenames")
 	flag.CountVarP(&opts.short, "short", "s", "Create a short table not showing the deleted files. Given twice, show only processes which are associated with a system service. Given three times, list the associated system service names only.")
+	flag.BoolVarP(&opts.verbose, "verbose", "v", false, "verbose output")
 	flag.Parse()
 
 	// NOTE: This is no longer needed on Go 1.19+ but runtime.Version() sucks
