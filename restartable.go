@@ -102,7 +102,7 @@ func getUser(uid int) (username string) {
 }
 
 func getDeleted(dirFd int, pid string) (files []string) {
-	maps, err := readFile(dirFd, filepath.Join("/proc/", pid, "maps"))
+	maps, err := readFile(dirFd, filepath.Join(opts.proc, pid, "maps"))
 	if err != nil {
 		return
 	}
@@ -119,7 +119,7 @@ func getDeleted(dirFd int, pid string) (files []string) {
 }
 
 func getService(dirFd int, pid string) (service string) {
-	cgroup, err := readFile(dirFd, filepath.Join("/proc/", pid, "cgroup"))
+	cgroup, err := readFile(dirFd, filepath.Join(opts.proc, pid, "cgroup"))
 	if err != nil {
 		return "-"
 	}
@@ -140,7 +140,7 @@ func getService(dirFd int, pid string) (service string) {
 
 func getInfo(pidInt int) (info *proc, err error) {
 	pid := strconv.Itoa(pidInt)
-	dirFd, err := unix.Open(filepath.Join("/proc", pid), unix.O_DIRECTORY|unix.O_PATH|unix.O_NOATIME, unix.O_RDONLY)
+	dirFd, err := unix.Open(filepath.Join(opts.proc, pid), unix.O_DIRECTORY|unix.O_PATH|unix.O_NOATIME, unix.O_RDONLY)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 		return
 	}
 
-	data, err := readFile(dirFd, filepath.Join("/proc/", pid, "status"))
+	data, err := readFile(dirFd, filepath.Join(opts.proc, pid, "status"))
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 
 	uid, _ := strconv.Atoi(regex.ruid.FindStringSubmatch(status)[1])
 
-	data, err = readFile(dirFd, filepath.Join("/proc/", pid, "cmdline"))
+	data, err = readFile(dirFd, filepath.Join(opts.proc, pid, "cmdline"))
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 		// Use full path
 
 		// cmdline is empty if zombie, but zombies have void proc.maps
-		exe, err := readLink(dirFd, filepath.Join("/proc", pid, "exe"))
+		exe, err := readLink(dirFd, filepath.Join(opts.proc, pid, "exe"))
 		if err != nil {
 			exe = ""
 		}
