@@ -186,11 +186,11 @@ func getInfo(pidInt int) (info *proc, err error) {
 		command = regex.name.FindStringSubmatch(status)[1]
 		// The command may be truncated to 15 chars in /proc/<pid>/status
 		// Also, kernel usermode helpers use "none"
-		if cmdline[0] != "" && (len(command) == 15 || command == "none") {
+		if len(cmdline) > 0 && cmdline[0] != "" && (len(command) == 15 || command == "none") {
 			command = cmdline[0]
 		}
 		// If running a script, get the path of the script instead of the interpreter
-		if regex.script.MatchString(filepath.Base(strings.Split(command, " ")[0])) {
+		if len(cmdline) > 1 && regex.script.MatchString(filepath.Base(strings.Split(command, " ")[0])) {
 			// Skip options and assume the first path is the script
 			for _, arg := range cmdline[1:] {
 				if isFile(arg) {
