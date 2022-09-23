@@ -35,8 +35,7 @@ var opts struct {
 var pid1 string
 
 func isFile(path string) bool {
-	info, err := os.Stat(path)
-	if err == nil {
+	if info, err := os.Stat(path); err == nil {
 		return info.Mode().IsRegular()
 	}
 	return false
@@ -55,8 +54,7 @@ func readFile(dirFd int, path string) ([]byte, error) {
 			d := append(data[:cap(data)], 0)
 			data = d[:len(data)]
 		}
-		n, err := unix.Read(fd, data[len(data):cap(data)])
-		if n > 0 {
+		if n, err := unix.Read(fd, data[len(data):cap(data)]); n > 0 {
 			data = data[:len(data)+n]
 		} else {
 			return data, err
@@ -67,8 +65,7 @@ func readFile(dirFd int, path string) ([]byte, error) {
 func readLink(dirFd int, path string) (string, error) {
 	for size := unix.PathMax; ; size *= 2 {
 		data := make([]byte, unix.PathMax)
-		n, err := unix.Readlinkat(dirFd, path, data)
-		if err != nil {
+		if n, err := unix.Readlinkat(dirFd, path, data); err != nil {
 			return "", err
 		} else if n != size {
 			return string(data[:n]), err
@@ -80,8 +77,7 @@ func getUser(uid int) (username string) {
 	if _, ok := usernames[uid]; ok {
 		username = usernames[uid]
 	} else {
-		info, err := user.LookupId(strconv.Itoa(uid))
-		if err != nil {
+		if info, err := user.LookupId(strconv.Itoa(uid)); err != nil {
 			username = "-"
 		} else {
 			username = info.Username
@@ -107,7 +103,6 @@ func getDeleted(dirFd int, pid string) (files []string) {
 			files = append(files, strings.TrimSuffix(file, " (deleted)"))
 		}
 	}
-
 	sort.Sort(sort.StringSlice(files))
 
 	return
@@ -223,13 +218,11 @@ func printInfoAll(proc string) error {
 	}
 
 	var pids []int
-
 	for _, entry := range entries {
 		if pid, err := strconv.Atoi(entry.Name()); err == nil {
 			pids = append(pids, pid)
 		}
 	}
-
 	sort.Sort(sort.IntSlice(pids))
 
 	services := make(map[string]bool)
@@ -279,8 +272,7 @@ func init() {
 func main() {
 	usernames = make(map[int]string)
 
-	data, err := os.ReadFile("/proc/1/comm")
-	if err == nil {
+	if data, err := os.ReadFile("/proc/1/comm"); err == nil {
 		pid1 = strings.TrimSpace(string(data))
 	}
 
@@ -288,8 +280,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "WARN: Run this program as root")
 	}
 
-	err = printInfoAll(opts.proc)
-	if err != nil {
+	if err := printInfoAll(opts.proc); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
