@@ -215,8 +215,8 @@ func getInfo(pidInt int) (info *proc, err error) {
 	}, nil
 }
 
-func printInfoAll(proc string) error {
-	entries, err := os.ReadDir(proc)
+func printInfoAll(dir string) error {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
@@ -234,9 +234,30 @@ func printInfoAll(proc string) error {
 	if opts.short < 3 {
 		fmt.Printf("%s\t%s\t%s\t%-20s\t%20s\t%s\n", "PID", "PPID", "UID", "User", "Service", "Command")
 	}
+
+	channel := make(map[int]chan *proc, len(pids))
 	for _, pid := range pids {
-		proc, err := getInfo(pid)
-		if proc == nil || err != nil {
+		channel[pid] = make(chan *proc)
+	}
+
+	go func() {
+		for _, pid := range pids {
+			go func(pid int) {
+				if info, err := getInfo(pid); info != nil && err == nil {
+					channel[pid] <- info
+				} else {
+					if err != nil {
+						fmt.Println("ERROR: ", err)
+					}
+					close(channel[pid])
+				}
+			}(pid)
+		}
+	}()
+
+	for _, pid := range pids {
+		proc := <-channel[pid]
+		if proc == nil {
 			continue
 		}
 		if opts.short < 3 {
