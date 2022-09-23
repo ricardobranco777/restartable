@@ -34,6 +34,20 @@ var opts struct {
 
 var pid1 string
 
+var regex = struct {
+	script, deleted, ignored, execmap, name, ppid, ruid, systemd, openrc *regexp.Regexp
+}{
+	regexp.MustCompile(`((perl|python|(ruby\.)?ruby)(\d?(\.\d)?)|(a|ba|c|da|fi|k|pdk|tc|z)?sh)$`),
+	regexp.MustCompile(`/.* \(deleted\)$`),
+	regexp.MustCompile(`[^/]*/(dev|memfd:|run| )`),
+	regexp.MustCompile(`^[0-9a-f]+-[0-9a-f]+ r(w|-)x`),
+	regexp.MustCompile(`(?m)^Name:\t(.*)$`),
+	regexp.MustCompile(`(?m)^PPid:\t(.*)$`),
+	regexp.MustCompile(`(?m)^Uid:\t([0-9]+)\t`),
+	regexp.MustCompile(`\d+:(?:name=systemd)?:/system\.slice/(?:.*/)?(.*)\.service$`),
+	regexp.MustCompile(`\d+:name=openrc:/(.*)$`),
+}
+
 func isFile(path string) bool {
 	if info, err := os.Stat(path); err == nil {
 		return info.Mode().IsRegular()
@@ -93,13 +107,9 @@ func getDeleted(dirFd int, pid string) (files []string) {
 		return
 	}
 
-	deleted := regexp.MustCompile(`/.* \(deleted\)$`)
-	ignored := regexp.MustCompile(`[^/]*/(dev|memfd:|run| )`)
-	execmap := regexp.MustCompile(`^[0-9a-f]+-[0-9a-f]+ r(w|-)x`)
-
 	for _, str := range strings.Split(string(maps), "\n") {
-		file := deleted.FindString(str)
-		if file != "" && execmap.MatchString(str) && !ignored.MatchString(str) {
+		file := regex.deleted.FindString(str)
+		if file != "" && regex.execmap.MatchString(str) && !regex.ignored.MatchString(str) {
 			files = append(files, strings.TrimSuffix(file, " (deleted)"))
 		}
 	}
@@ -116,11 +126,9 @@ func getService(dirFd int, pid string) (service string) {
 
 	var match []string
 	if pid1 == "systemd" {
-		regex := regexp.MustCompile(`\d+:(?:name=systemd)?:/system\.slice/(?:.*/)?(.*)\.service$`)
-		match = regex.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
+		match = regex.systemd.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
 	} else if pid1 == "openrc" {
-		regex := regexp.MustCompile(`\d+:name=openrc:/(.*)$`)
-		match = regex.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
+		match = regex.openrc.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
 	}
 
 	if len(match) > 1 {
@@ -149,10 +157,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 	}
 	status := string(data)
 
-	name := regexp.MustCompile(`(?m)^Name:\t(.*)$`)
-	ppid := regexp.MustCompile(`(?m)^PPid:\t(.*)$`)
-	ruid := regexp.MustCompile(`(?m)^Uid:\t([0-9]+)\t`)
-	uid, _ := strconv.Atoi(ruid.FindStringSubmatch(status)[1])
+	uid, _ := strconv.Atoi(regex.ruid.FindStringSubmatch(status)[1])
 
 	data, err = readFile(dirFd, filepath.Join("/proc/", pid, "cmdline"))
 	if err != nil {
@@ -178,15 +183,14 @@ func getInfo(pidInt int) (info *proc, err error) {
 			command = strings.Join(cmdline, " ")
 		}
 	} else {
-		command = name.FindStringSubmatch(status)[1]
+		command = regex.name.FindStringSubmatch(status)[1]
 		// The command may be truncated to 15 chars in /proc/<pid>/status
 		// Also, kernel usermode helpers use "none"
 		if cmdline[0] != "" && (len(command) == 15 || command == "none") {
 			command = cmdline[0]
 		}
 		// If running a script, get the path of the script instead of the interpreter
-		script_regex := regexp.MustCompile(`((perl|python|(ruby\.)?ruby)(\d?(\.\d)?)|(a|ba|c|da|fi|k|pdk|tc|z)?sh)$`)
-		if script_regex.MatchString(filepath.Base(strings.Split(command, " ")[0])) {
+		if regex.script.MatchString(filepath.Base(strings.Split(command, " ")[0])) {
 			// Skip options and assume the first path is the script
 			for _, arg := range cmdline[1:] {
 				if isFile(arg) {
@@ -205,7 +209,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 	return &proc{
 		command: command,
 		deleted: files,
-		ppid:    ppid.FindStringSubmatch(status)[1],
+		ppid:    regex.ppid.FindStringSubmatch(status)[1],
 		uid:     uid,
 		service: getService(dirFd, pid),
 	}, nil
