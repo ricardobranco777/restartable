@@ -25,6 +25,8 @@ type proc struct {
 	service string
 }
 
+const version string = "v1.0"
+
 var usernames map[int]string
 
 var opts struct {
@@ -32,6 +34,7 @@ var opts struct {
 	quote   bool
 	short   int
 	verbose bool
+	version bool
 }
 
 var pid1 string
@@ -303,7 +306,13 @@ func init() {
 	flag.BoolVarP(&opts.quote, "quote", "Q", false, "quote filenames")
 	flag.CountVarP(&opts.short, "short", "s", "Create a short table not showing the deleted files. Given twice, show only processes which are associated with a system service. Given three times, list the associated system service names only.")
 	flag.BoolVarP(&opts.verbose, "verbose", "v", false, "verbose output")
+	flag.BoolVarP(&opts.version, "version", "V", false, "show version and exit")
 	flag.Parse()
+
+	if opts.version {
+		fmt.Printf("%s\t%v\n", version, runtime.Version())
+		os.Exit(0)
+	}
 
 	// NOTE: This is no longer needed on Go 1.19+ but runtime.Version() sucks
 	var limits unix.Rlimit
