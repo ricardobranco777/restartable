@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"golang.org/x/sys/unix"
+	"log"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -52,6 +53,8 @@ var regex = struct {
 	regexp.MustCompile(`\d+:(?:name=systemd)?:/system\.slice/(?:.*/)?(.*)\.service$`),
 	regexp.MustCompile(`\d+:name=openrc:/(.*)$`),
 }
+
+var logger *log.Logger
 
 func quoteString(str string) string {
 	if opts.quote {
@@ -302,6 +305,8 @@ func printInfoAll(dir string) error {
 }
 
 func init() {
+	logger = log.New(os.Stderr, "ERROR: ", 0)
+
 	flag.StringVarP(&opts.proc, "proc", "P", "/proc", "proc directory")
 	flag.BoolVarP(&opts.quote, "quote", "Q", false, "quote filenames")
 	flag.CountVarP(&opts.short, "short", "s", "Create a short table not showing the deleted files. Given twice, show only processes which are associated with a system service. Given three times, list the associated system service names only.")
@@ -319,7 +324,7 @@ func init() {
 	if err := unix.Getrlimit(unix.RLIMIT_NOFILE, &limits); err != nil && limits.Cur != limits.Max {
 		limits.Cur = limits.Max
 		if err = unix.Setrlimit(unix.RLIMIT_NOFILE, &limits); err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
+			logger.Print(err)
 		}
 	}
 }
@@ -336,8 +341,7 @@ func main() {
 	}
 
 	if err := printInfoAll(opts.proc); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		logger.Fatal(err)
 	}
 	os.Exit(0)
 }
