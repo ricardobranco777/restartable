@@ -43,8 +43,7 @@ Usage of ./restartable:
 
   - You must run it as root to see the information you want.
   - The output is different from `zypper ps` to be easily parseable
-  - Python version available at https://github.com/ricardobranco777/restartable
 
 ## BUGS / LIMITATIONS
 
-  - The service names can only be extracted if started by Systemd
+  - The service names can only be extracted if started by Systemd / OpenRC
