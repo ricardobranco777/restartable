@@ -193,7 +193,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 		}
 		exe = strings.TrimSuffix(exe, " (deleted)")
 
-		if len(cmdline) > 0 && cmdline[0] != "/" && exe != "" && filepath.Base(cmdline[0]) == filepath.Base(exe) {
+		if len(cmdline) > 0 && !strings.HasPrefix(cmdline[0], "/") && exe != "" && filepath.Base(cmdline[0]) == filepath.Base(exe) {
 			command = exe + strings.Join(cmdline[1:], " ")
 		} else {
 			command = strings.Join(cmdline, " ")
@@ -215,7 +215,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 				}
 			}
 		}
-		if command == "/" {
+		if strings.HasPrefix(command, "/") {
 			command = filepath.Base(command)
 		} else {
 			command = strings.Split(command, " ")[0]
