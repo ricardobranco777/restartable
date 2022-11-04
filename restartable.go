@@ -54,8 +54,6 @@ var regex = struct {
 	regexp.MustCompile(`\d+:name=openrc:/(.*)$`),
 }
 
-var logger *log.Logger
-
 func quoteString(str string) string {
 	if opts.quote {
 		return strconv.Quote(str)
@@ -305,7 +303,8 @@ func printInfoAll(dir string) error {
 }
 
 func init() {
-	logger = log.New(os.Stderr, "ERROR: ", 0)
+	log.SetPrefix("ERROR: ")
+	log.SetFlags(0)
 
 	flag.StringVarP(&opts.proc, "proc", "P", "/proc", "proc directory")
 	flag.BoolVarP(&opts.quote, "quote", "Q", false, "quote filenames")
@@ -324,7 +323,7 @@ func init() {
 	if err := unix.Getrlimit(unix.RLIMIT_NOFILE, &limits); err != nil && limits.Cur != limits.Max {
 		limits.Cur = limits.Max
 		if err = unix.Setrlimit(unix.RLIMIT_NOFILE, &limits); err != nil {
-			logger.Print(err)
+			log.Print(err)
 		}
 	}
 }
@@ -341,7 +340,7 @@ func main() {
 	}
 
 	if err := printInfoAll(opts.proc); err != nil {
-		logger.Fatal(err)
+		log.Fatal(err)
 	}
 	os.Exit(0)
 }
