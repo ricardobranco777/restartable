@@ -57,9 +57,8 @@ var regex = struct {
 func quoteString(str string) string {
 	if opts.quote {
 		return strconv.Quote(str)
-	} else {
-		return str
 	}
+	return str
 }
 
 func isFile(path string) bool {
@@ -147,9 +146,8 @@ func getService(dirFd int, pid string) (service string) {
 
 	if len(match) > 1 {
 		return match[1]
-	} else {
-		return "-"
 	}
+	return "-"
 }
 
 func getInfo(pidInt int) (info *proc, err error) {
