@@ -126,7 +126,7 @@ func getDeleted(dirFd int, pid string) (files []string) {
 			files = append(files, quoteString(strings.TrimSuffix(file, " (deleted)")))
 		}
 	}
-	sort.Sort(sort.StringSlice(files))
+	sort.Strings(files)
 
 	return
 }
@@ -239,7 +239,7 @@ func printInfoAll(dir string) error {
 			pids = append(pids, pid)
 		}
 	}
-	sort.Sort(sort.IntSlice(pids))
+	sort.Ints(pids)
 
 	services := make(map[string]bool)
 
@@ -291,7 +291,7 @@ func printInfoAll(dir string) error {
 		for s := range services {
 			ss = append(ss, s)
 		}
-		sort.Sort(sort.StringSlice(ss))
+		sort.Strings(ss)
 		for _, service := range ss {
 			fmt.Println(service)
 		}
