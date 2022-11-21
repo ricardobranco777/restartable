@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -300,6 +301,23 @@ func printInfoAll(dir string) error {
 	return nil
 }
 
+func getCommit() string {
+	var commit, dirty string
+
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			switch {
+			case setting.Key == "vcs.revision":
+				commit = setting.Value
+			case setting.Key == "vcs.modified":
+				dirty = "-dirty"
+			}
+		}
+	}
+
+	return commit + dirty
+}
+
 func init() {
 	log.SetPrefix("ERROR: ")
 	log.SetFlags(0)
@@ -312,7 +330,7 @@ func init() {
 	flag.Parse()
 
 	if opts.version {
-		fmt.Printf("%s\t%v\n", version, runtime.Version())
+		fmt.Printf("v%s %v %s/%s %s\n", version, runtime.Version(), runtime.GOOS, runtime.GOARCH, getCommit())
 		os.Exit(0)
 	}
 
