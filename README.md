@@ -1,3 +1,5 @@
+![Build Status](https://github.com/ricardobranco777/restartable/actions/workflows/ci.yml/badge.svg)
+
 # restartable
 List running processes using files deleted by recent upgrades
 
