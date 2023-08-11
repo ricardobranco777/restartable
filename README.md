@@ -43,9 +43,5 @@ Usage of ./restartable:
 
 ## NOTES
 
-  - You must run it as root to see the information you want.
+  - You must run it as root to see information about other processes
   - The output is different from `zypper ps` to be easily parseable
-
-## BUGS / LIMITATIONS
-
-  - The service names can only be extracted if started by Systemd / OpenRC
