@@ -27,7 +27,7 @@ type proc struct {
 	service string
 }
 
-const version string = "v1.0"
+const version string = "2.0"
 
 var usernames map[int]string
 
