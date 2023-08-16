@@ -180,7 +180,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 		exe = strings.TrimSuffix(exe, " (deleted)")
 
 		if len(cmdline) > 0 && !strings.HasPrefix(cmdline[0], "/") && exe != "" && filepath.Base(cmdline[0]) == filepath.Base(exe) {
-			command = exe + strings.Join(cmdline[1:], " ")
+			command = exe + " " + strings.Join(cmdline[1:], " ")
 		} else {
 			command = strings.Join(cmdline, " ")
 		}
