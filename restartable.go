@@ -58,13 +58,6 @@ func quoteString(str string) string {
 	return str
 }
 
-func isFile(path string) bool {
-	if info, err := os.Stat(path); err == nil {
-		return info.Mode().IsRegular()
-	}
-	return false
-}
-
 func readFile(dirFd int, path string) ([]byte, error) {
 	fd, err := unix.Openat(dirFd, path, unix.O_NOFOLLOW, unix.O_RDONLY)
 	if err != nil {
@@ -197,16 +190,6 @@ func getInfo(pidInt int) (info *proc, err error) {
 		// Also, kernel usermode helpers use "none"
 		if len(cmdline) > 0 && cmdline[0] != "" && (len(command) == 15 || command == "none") {
 			command = cmdline[0]
-		}
-		// If running a script, get the path of the script instead of the interpreter
-		if len(cmdline) > 1 && regexScript.MatchString(filepath.Base(strings.Split(command, " ")[0])) {
-			// Skip options and assume the first path is the script
-			for _, arg := range cmdline[1:] {
-				if isFile(arg) {
-					command = arg
-					break
-				}
-			}
 		}
 		if strings.HasPrefix(command, "/") {
 			command = filepath.Base(command)
