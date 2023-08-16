@@ -35,19 +35,21 @@ var opts struct {
 	proc    string
 	quote   bool
 	short   int
+	user    bool
 	verbose bool
 	version bool
 }
 
 var (
-	regex_script  = regexp.MustCompile(`((perl|python|(ruby\.)?ruby)(\d?(\.\d)?)|(a|ba|c|da|fi|k|pdk|tc|z)?sh)$`)
-	regex_deleted = regexp.MustCompile(`/.* \(deleted\)$`)
-	regex_ignored = regexp.MustCompile(`[^/]*/(dev|memfd:|run| )`)
-	regex_execmap = regexp.MustCompile(`^[0-9a-f]+-[0-9a-f]+ r(w|-)x`)
-	regex_name    = regexp.MustCompile(`(?m)^Name:\t(.*)$`)
-	regex_ppid    = regexp.MustCompile(`(?m)^PPid:\t(.*)$`)
-	regex_ruid    = regexp.MustCompile(`(?m)^Uid:\t([0-9]+)\t`)
-	regex_systemd = regexp.MustCompile(`\d+:(?:name=systemd)?:/system\.slice/(?:.*/)?(.*)\.service$`)
+	regex_script         = regexp.MustCompile(`((perl|python|(ruby\.)?ruby)(\d?(\.\d)?)|(a|ba|c|da|fi|k|pdk|tc|z)?sh)$`)
+	regex_deleted        = regexp.MustCompile(`/.* \(deleted\)$`)
+	regex_ignored        = regexp.MustCompile(`[^/]*/(dev|memfd:|run| )`)
+	regex_execmap        = regexp.MustCompile(`^[0-9a-f]+-[0-9a-f]+ r(w|-)x`)
+	regex_name           = regexp.MustCompile(`(?m)^Name:\t(.*)$`)
+	regex_ppid           = regexp.MustCompile(`(?m)^PPid:\t(.*)$`)
+	regex_ruid           = regexp.MustCompile(`(?m)^Uid:\t([0-9]+)\t`)
+	regex_system_service = regexp.MustCompile(`\d+:[^:]*:/system\.slice/(?:.*/)?(.*)\.service$`)
+	regex_user_service   = regexp.MustCompile(`\d+:[^:]*:/user\.slice/(?:.*/)?(.*)\.service$`)
 )
 
 func quoteString(str string) string {
@@ -133,7 +135,12 @@ func getService(dirFd int, pid string) (service string) {
 		return "-"
 	}
 
-	match := regex_systemd.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
+	var match []string
+	if opts.user {
+		match = regex_user_service.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
+	} else {
+		match = regex_system_service.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
+	}
 
 	if len(match) > 1 {
 		return match[1]
@@ -315,6 +322,7 @@ func init() {
 	flag.StringVarP(&opts.proc, "proc", "P", "/proc", "proc directory")
 	flag.BoolVarP(&opts.quote, "quote", "Q", false, "quote filenames")
 	flag.CountVarP(&opts.short, "short", "s", "Create a short table not showing the deleted files. Given twice, show only processes which are associated with a system service. Given three times, list the associated system service names only.")
+	flag.BoolVarP(&opts.user, "user", "u", false, "show user services instead of system services")
 	flag.BoolVarP(&opts.verbose, "verbose", "v", false, "verbose output")
 	flag.BoolVarP(&opts.version, "version", "V", false, "show version and exit")
 	flag.Parse()
