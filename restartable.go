@@ -332,15 +332,6 @@ func init() {
 		os.Exit(0)
 	}
 
-	// NOTE: This is no longer needed on Go 1.19+ but runtime.Version() sucks
-	var limits unix.Rlimit
-	if err := unix.Getrlimit(unix.RLIMIT_NOFILE, &limits); err != nil && limits.Cur != limits.Max {
-		limits.Cur = limits.Max
-		if err = unix.Setrlimit(unix.RLIMIT_NOFILE, &limits); err != nil {
-			log.Print(err)
-		}
-	}
-
 	if flag.NArg() > 0 {
 		flag.Usage()
 		os.Exit(1)
