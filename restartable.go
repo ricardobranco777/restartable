@@ -113,7 +113,7 @@ func getUser(uid int) (username string) {
 }
 
 func getDeleted(dirFd int, pid string) (files []string) {
-	maps, err := readFile(dirFd, filepath.Join(opts.proc, pid, "maps"))
+	maps, err := readFile(dirFd, "maps")
 	if err != nil {
 		return
 	}
@@ -130,7 +130,7 @@ func getDeleted(dirFd int, pid string) (files []string) {
 }
 
 func getService(dirFd int, pid string) (service string) {
-	cgroup, err := readFile(dirFd, filepath.Join(opts.proc, pid, "cgroup"))
+	cgroup, err := readFile(dirFd, "cgroup")
 	if err != nil {
 		return "-"
 	}
@@ -161,7 +161,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 		return
 	}
 
-	data, err := readFile(dirFd, filepath.Join(opts.proc, pid, "status"))
+	data, err := readFile(dirFd, "status")
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 
 	uid, _ := strconv.Atoi(regex_ruid.FindStringSubmatch(status)[1])
 
-	data, err = readFile(dirFd, filepath.Join(opts.proc, pid, "cmdline"))
+	data, err = readFile(dirFd, "cmdline")
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 		// Use full path
 
 		// cmdline is empty if zombie, but zombies have void proc.maps
-		exe, err := readLink(dirFd, filepath.Join(opts.proc, pid, "exe"))
+		exe, err := readLink(dirFd, "exe")
 		if err != nil {
 			exe = ""
 		}
