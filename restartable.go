@@ -39,8 +39,6 @@ var opts struct {
 	version bool
 }
 
-var pid1 string
-
 var (
 	regex_script  = regexp.MustCompile(`((perl|python|(ruby\.)?ruby)(\d?(\.\d)?)|(a|ba|c|da|fi|k|pdk|tc|z)?sh)$`)
 	regex_deleted = regexp.MustCompile(`/.* \(deleted\)$`)
@@ -50,7 +48,6 @@ var (
 	regex_ppid    = regexp.MustCompile(`(?m)^PPid:\t(.*)$`)
 	regex_ruid    = regexp.MustCompile(`(?m)^Uid:\t([0-9]+)\t`)
 	regex_systemd = regexp.MustCompile(`\d+:(?:name=systemd)?:/system\.slice/(?:.*/)?(.*)\.service$`)
-	regex_openrc  = regexp.MustCompile(`\d+:name=openrc:/(.*)$`)
 )
 
 func quoteString(str string) string {
@@ -136,12 +133,7 @@ func getService(dirFd int, pid string) (service string) {
 		return "-"
 	}
 
-	var match []string
-	if pid1 == "systemd" {
-		match = regex_systemd.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
-	} else if pid1 == "openrc" {
-		match = regex_openrc.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
-	}
+	match := regex_systemd.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
 
 	if len(match) > 1 {
 		return match[1]
@@ -349,10 +341,6 @@ func init() {
 
 func main() {
 	usernames = make(map[int]string)
-
-	if data, err := os.ReadFile("/proc/1/comm"); err == nil {
-		pid1 = strings.TrimSpace(string(data))
-	}
 
 	if os.Geteuid() != 0 {
 		fmt.Fprintln(os.Stderr, "WARN: Run this program as root")
