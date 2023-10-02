@@ -50,7 +50,7 @@ Usage of ./restartable:
 
 - Restart user services after upgrade
 
-`sudo restartables --user -sss | while read service ; do systemctl restart "$service" ; done`
+`sudo restartables --user -sss | while read service ; do systemctl restart --user "$service" ; done`
 
 Be careful because depending on the service you may lose connection or get kicked out of your login session.
 
