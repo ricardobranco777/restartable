@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <errno.h>
 #include <err.h>
 #include <sys/types.h>
@@ -42,6 +43,23 @@
 
 static int verbose = 0;
 
+/* Avoid ANSI terminal injection from processes that overwrite their argv */
+static char *
+safe_arg(char *arg) {
+	if (arg == NULL)
+		return NULL;
+
+	char *s = arg;
+	while (*s != '\0') {
+		if (!isprint(*s)) {
+			*s = '.';
+		}
+		s++;
+	}
+
+	return arg;
+}
+
 static void
 print_argv(kvm_t *kd, const struct kinfo_proc *kp) {
 	char **argv = kvm_getargv(kd, kp, 0);
@@ -52,7 +70,7 @@ print_argv(kvm_t *kd, const struct kinfo_proc *kp) {
 	}
 	printf("\t");
 	do {
-		printf(" %s", *argv);
+		printf(" %s", safe_arg(*argv));
 	} while (*++argv);
 	printf("\n");
 }
