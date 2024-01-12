@@ -30,16 +30,31 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <errno.h>
 #include <err.h>
 #include <sys/types.h>
+
+#include <kvm.h>
+#if defined(__FreeBSD__)
 #include <sys/user.h>
 #include <libutil.h>
+#elif defined(__NetBSD__)
+#include <sys/param.h>
+#include <sys/sysctl.h>
+#include <util.h>
+#endif
 
 #include <fcntl.h>
-#include <kvm.h>
 #include <limits.h>	/* _POSIX2_LINE_MAX */
-#include <paths.h>	/* _PATH_DEVNULL */
+
+#if defined(__NetBSD__)
+#define kinfo_proc	kinfo_proc2
+#define kvm_getargv	kvm_getargv2
+#define ki_comm	 	p_comm
+#define ki_login	p_login
+#define ki_pid	 	p_pid
+#define ki_ppid	 	p_ppid
+#define ki_ruid	 	p_ruid
+#endif
 
 static int verbose = 0;
 
@@ -51,7 +66,7 @@ safe_arg(char *arg) {
 
 	char *s = arg;
 	while (*s != '\0') {
-		if (!isprint(*s)) {
+		if (!isprint((int)*s)) {
 			*s = '.';
 		}
 		s++;
@@ -77,15 +92,22 @@ print_argv(kvm_t *kd, const struct kinfo_proc *kp) {
 
 static void
 print_proc(kvm_t *kd, const struct kinfo_proc *kp) {
-	struct kinfo_vmentry *vmmap;
+#if defined(__FreeBSD__)
 	int i, count;
+#elif defined(__NetBSD__)
+	unsigned int i;
+	size_t count;
+#endif
 
-	vmmap = kinfo_getvmmap(kp->ki_pid, &count);
-	if (vmmap == NULL && errno != EPERM)
+	if (kp->ki_pid == 0)
+		return;
+
+	struct kinfo_vmentry *vmmap = kinfo_getvmmap(kp->ki_pid, &count);
+	if (vmmap == NULL)
 		err(1, "kinfo_getvmmap(): %d", kp->ki_pid);
 
 	for (i = 0; i < count; i++)
-		if (vmmap[i].kve_type == KVME_TYPE_VNODE && vmmap[i].kve_protection & VM_PROT_EXECUTE && vmmap[i].kve_path[0] == '\0') {
+		if (vmmap[i].kve_type == KVME_TYPE_VNODE && vmmap[i].kve_protection & KVME_PROT_EXEC && vmmap[i].kve_path[0] == '\0') {
 			printf("%d\t%d\t%d\t%s\t%s\n", kp->ki_pid, kp->ki_ppid, kp->ki_ruid, kp->ki_login, kp->ki_comm);
 			if (verbose)
 				print_argv(kd, kp);
@@ -102,13 +124,19 @@ print_all(void) {
 	kvm_t *kd;
 	int count;
 
-	kd = kvm_openfiles(_PATH_DEVNULL, _PATH_DEVNULL, NULL, O_RDONLY, errbuf);
+	kd = kvm_openfiles(NULL, NULL, NULL, O_RDONLY, errbuf);
 	if (kd == NULL)
 		errx(1, "kvm_openfiles(): %s", errbuf);
 
+#if defined(__FreeBSD__)
 	procs = kinfo_getallproc(&count);
 	if (procs == NULL)
 		err(1, "kinfo_getallproc()");
+#elif defined(__NetBSD__)
+	procs = kvm_getproc2(kd, KERN_PROC_ALL, 0, sizeof(struct kinfo_proc2), &count);
+#endif
+	if (procs == NULL)
+		 err(1, "kvm_getprocs(): %s", kvm_geterr(kd));
 
 	for (int i = 0; i < count; i++)
 		print_proc(kd, &procs[i]);

@@ -1,4 +1,8 @@
-CFLAGS	= -Wall -Wextra
+PROG	= restartable
+CFLAGS	= -Wall -Wextra -O2
+LDFLAGS	= -lkvm -lutil
 
-restartable: restartable.c
-	$(CC) $(CFLAGS) -o $@ $< -lutil -lkvm
+MK_DEBUG_FILES = no
+MAN =
+
+.include <bsd.prog.mk>
