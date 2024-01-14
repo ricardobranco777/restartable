@@ -117,6 +117,24 @@ print_proc(kvm_t *kd, const struct kinfo_proc *kp) {
 	free(vmmap);
 }
 
+#ifdef __NetBSD__
+/*
+ * Sort processes by pid
+ */
+static int
+kinfo_proc_compare(const void *a, const void *b)
+{
+	return ((const struct kinfo_proc2 *)a)->p_pid - ((const struct kinfo_proc2 *)b)->p_pid;
+}
+
+static void
+kinfo_proc_sort(struct kinfo_proc2 *kipp, int count)
+{
+
+	qsort(kipp, count, sizeof(*kipp), kinfo_proc_compare);
+}
+#endif
+
 static int
 print_all(void) {
 	char errbuf[_POSIX2_LINE_MAX];
@@ -134,6 +152,7 @@ print_all(void) {
 		err(1, "kinfo_getallproc()");
 #elif defined(__NetBSD__)
 	procs = kvm_getproc2(kd, KERN_PROC_ALL, 0, sizeof(struct kinfo_proc2), &count);
+	kinfo_proc_sort(procs, count / sizeof(*procs));
 #endif
 	if (procs == NULL)
 		 err(1, "kvm_getprocs(): %s", kvm_geterr(kd));
