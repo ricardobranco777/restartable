@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"golang.org/x/sys/unix"
 	"log"
@@ -33,7 +34,6 @@ var usernames map[int]string
 
 var opts struct {
 	proc    string
-	quote   bool
 	short   int
 	user    bool
 	verbose bool
@@ -51,11 +51,9 @@ var (
 	regexUserService   = regexp.MustCompile(`\d+:[^:]*:/user\.slice/(?:.*/)?(.*)\.service$`)
 )
 
+// Quote special characters
 func quoteString(str string) string {
-	if opts.quote {
-		return strconv.Quote(str)
-	}
-	return str
+	return strings.Trim(strconv.Quote(str), `"`);
 }
 
 func readFile(dirFd int, path string) ([]byte, error) {
@@ -85,7 +83,7 @@ func readLink(dirFd int, path string) (string, error) {
 		if n, err := unix.Readlinkat(dirFd, path, data); err != nil {
 			return "", err
 		} else if n != size {
-			return quoteString(string(data[:n])), err
+			return string(data[:n]), err
 		}
 	}
 }
@@ -165,8 +163,12 @@ func getInfo(pidInt int) (info *proc, err error) {
 	if err != nil {
 		return nil, err
 	}
-	cmdline := strings.Split(string(data), "\x00")
-	cmdline = cmdline[:len(cmdline)-1]
+
+	cmdline := []string{}
+	if bytes.HasSuffix(data, []byte("\x00")) {
+		cmdline = strings.Split(quoteString(string(data)), "\x00")
+		cmdline = cmdline[:len(cmdline)-1]
+	}
 
 	command := ""
 	if opts.verbose {
@@ -177,7 +179,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 		if err != nil {
 			exe = ""
 		}
-		exe = strings.TrimSuffix(exe, " (deleted)")
+		exe = strings.TrimSuffix(quoteString(exe), " (deleted)")
 
 		if len(cmdline) > 0 && !strings.HasPrefix(cmdline[0], "/") && exe != "" && filepath.Base(cmdline[0]) == filepath.Base(exe) {
 			command = exe + " " + strings.Join(cmdline[1:], " ")
@@ -185,7 +187,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 			command = strings.Join(cmdline, " ")
 		}
 	} else {
-		command = regexName.FindStringSubmatch(status)[1]
+		command = quoteString(regexName.FindStringSubmatch(status)[1])
 		// The command may be truncated to 15 chars in /proc/<pid>/status
 		// Also, kernel usermode helpers use "none"
 		if len(cmdline) > 0 && cmdline[0] != "" && (len(command) == 15 || command == "none") {
@@ -302,7 +304,6 @@ func init() {
 	log.SetFlags(0)
 
 	flag.StringVarP(&opts.proc, "proc", "P", "/proc", "proc directory")
-	flag.BoolVarP(&opts.quote, "quote", "Q", false, "quote filenames")
 	flag.CountVarP(&opts.short, "short", "s", "Create a short table not showing the deleted files. Given twice, show only processes which are associated with a system service. Given three times, list the associated system service names only.")
 	flag.BoolVarP(&opts.user, "user", "u", false, "show user services instead of system services")
 	flag.BoolVarP(&opts.verbose, "verbose", "v", false, "verbose output")
