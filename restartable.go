@@ -53,7 +53,10 @@ var (
 
 // Quote special characters
 func quoteString(str string) string {
-	return strings.Trim(strconv.Quote(str), `"`);
+	if len(str) > 0 {
+		return strconv.Quote(str)[1 : len(str)-1]
+	}
+	return ""
 }
 
 func readFile(dirFd int, path string) ([]byte, error) {
