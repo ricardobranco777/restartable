@@ -8,7 +8,7 @@ $(BIN): *.go
 .PHONY: test
 test:
 	@go vet
-	@golint
+	@staticcheck
 
 .PHONY: clean
 clean:

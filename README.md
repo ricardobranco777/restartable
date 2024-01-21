@@ -35,7 +35,6 @@ Excerpt from `zypper` manual:
 ```
 Usage of ./restartable:
   -P, --proc string   proc directory (default "/proc")
-  -Q, --quote         quote filenames
   -s, --short count   Create a short table not showing the deleted files. Given twice, show only processes which are associated with a system service. Given three times, list the associated system service names only.
   -u, --user          show user services instead of system services
   -v, --verbose       verbose output
