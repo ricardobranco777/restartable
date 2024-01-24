@@ -33,7 +33,6 @@
 #include <err.h>
 #include <sys/types.h>
 
-#include <kvm.h>
 #if defined(__FreeBSD__)
 #include <sys/user.h>
 #include <libutil.h>
@@ -43,6 +42,7 @@
 #include <util.h>
 #endif
 
+#include <kvm.h>
 #include <fcntl.h>
 #include <limits.h>	/* _POSIX2_LINE_MAX */
 
