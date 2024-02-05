@@ -61,3 +61,7 @@ Be careful because depending on the service you may lose connection or get kicke
 ## FreeBSD / NetBSD version
 
 [unix](unix)
+
+## Solaris version
+
+[solaris](solaris)
