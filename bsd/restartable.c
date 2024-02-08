@@ -27,15 +27,18 @@
  */
 
 #include <sys/types.h>
-#if defined(__FreeBSD__)
-#include <sys/user.h>
-#include <libutil.h>
-#elif defined(__NetBSD__)
 #include <sys/param.h>
+#if defined(__FreeBSD__)
+#include <sys/queue.h>
+#include <sys/socket.h>
+#include <sys/sysctl.h>
+#include <sys/user.h>
+#include <libprocstat.h>
+#elif defined(__NetBSD__)
 #include <sys/sysctl.h>
 #include <util.h>
-#endif
 #include <kvm.h>
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,7 +49,11 @@
 #include <vis.h>
 
 
-#if defined(__NetBSD__)
+#ifdef __FreeBSD__
+#define kvm_t	struct procstat
+#endif
+
+#ifdef __NetBSD__
 #define kinfo_proc	kinfo_proc2
 #define kvm_getargv	kvm_getargv2
 #define ki_comm	 	p_comm
@@ -73,11 +80,19 @@ safe_arg(char *arg) {
 }
 
 static void
-print_argv(kvm_t *kd, const struct kinfo_proc *kp) {
+print_argv(kvm_t *kd, struct kinfo_proc *kp) {
+#if defined(__FreeBSD__)
+	char **argv = procstat_getargv(kd, kp, 0);
+#elif defined(__NetBSD__)
 	char **argv = kvm_getargv(kd, kp, 0);
+#endif
 
 	if (argv == NULL) {
-		warn("kvm_getargv(): %d: %s", kp->ki_pid, kvm_geterr(kd));
+#if defined(__FreeBSD__)
+		warn("procstat_getargv(): %d", kp->ki_pid);
+#elif defined(__NetBSD__)
+		warnx("kvm_getargv(): %d: %s", kp->ki_pid, kvm_geterr(kd));
+#endif
 		return;
 	}
 	printf("\t");
@@ -85,10 +100,14 @@ print_argv(kvm_t *kd, const struct kinfo_proc *kp) {
 		printf(" %s", safe_arg(*argv));
 	} while (*++argv);
 	printf("\n");
+
+#ifdef __FreeBSD__
+	procstat_freeargv(kd);
+#endif
 }
 
 static void
-print_proc(kvm_t *kd, const struct kinfo_proc *kp) {
+print_proc(kvm_t *kd, struct kinfo_proc *kp) {
 #if defined(__FreeBSD__)
 	int i, count;
 #elif defined(__NetBSD__)
@@ -99,9 +118,13 @@ print_proc(kvm_t *kd, const struct kinfo_proc *kp) {
 	if (kp->ki_pid == 0)
 		return;
 
+#if defined(__FreeBSD__)
+	struct kinfo_vmentry *vmmap = procstat_getvmmap(kd, kp, &count);
+#elif defined(__NetBSD__)
 	struct kinfo_vmentry *vmmap = kinfo_getvmmap(kp->ki_pid, &count);
 	if (vmmap == NULL)
 		err(1, "kinfo_getvmmap(): %d", kp->ki_pid);
+#endif
 
 	for (i = 0; i < count; i++)
 		if (vmmap[i].kve_type == KVME_TYPE_VNODE && vmmap[i].kve_protection & KVME_PROT_EXEC && vmmap[i].kve_path[0] == '\0') {
@@ -111,7 +134,11 @@ print_proc(kvm_t *kd, const struct kinfo_proc *kp) {
 			break;
 		}
 
+#if defined(__FreeBSD__)
+	procstat_freevmmap(kd, vmmap);
+#elif defined(__NetBSD__)
 	free(vmmap);
+#endif
 }
 
 #ifdef __NetBSD__
@@ -134,31 +161,42 @@ kinfo_proc_sort(struct kinfo_proc2 *kipp, int count)
 
 static int
 print_all(void) {
+#ifdef __NetBSD__
 	char errbuf[_POSIX2_LINE_MAX];
+#endif
 	struct kinfo_proc *procs;
-	kvm_t *kd;
 	int count;
+	kvm_t *kd;
 
+#if defined(__FreeBSD__)
+	/* Doesn't work if security.bsd.unprivileged_proc_debug=0 */
+	kd = procstat_open_sysctl();
+	if (kd == NULL)
+		err(1, "procstat_open_sysctl()");
+	procs = procstat_getprocs(kd, KERN_PROC_PROC, 0, &count);
+	if (procs == NULL)
+		err(1, "procstat_getprocs()");
+#elif defined(__NetBSD__)
 	kd = kvm_openfiles(NULL, NULL, NULL, O_RDONLY, errbuf);
 	if (kd == NULL)
 		errx(1, "kvm_openfiles(): %s", errbuf);
 
-#if defined(__FreeBSD__)
-	procs = kinfo_getallproc(&count);
-	if (procs == NULL)
-		err(1, "kinfo_getallproc()");
-#elif defined(__NetBSD__)
 	procs = kvm_getproc2(kd, KERN_PROC_ALL, 0, sizeof(struct kinfo_proc2), &count);
 	kinfo_proc_sort(procs, count / sizeof(*procs));
-#endif
 	if (procs == NULL)
-		 err(1, "kvm_getprocs(): %s", kvm_geterr(kd));
+		 err(1, "kvm_getproc2(): %s", kvm_geterr(kd));
+#endif
 
 	for (int i = 0; i < count; i++)
 		print_proc(kd, &procs[i]);
 
+#if defined(__FreeBSD__)
+	procstat_freeprocs(kd, procs);
+	procstat_close(kd);
+#elif defined(__NetBSD__)
 	free(procs);
 	(void)kvm_close(kd);
+#endif
 	return 0;
 }
 
