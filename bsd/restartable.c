@@ -26,13 +26,7 @@
  * SUCH DAMAGE.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include <err.h>
 #include <sys/types.h>
-
 #if defined(__FreeBSD__)
 #include <sys/user.h>
 #include <libutil.h>
@@ -41,10 +35,16 @@
 #include <sys/sysctl.h>
 #include <util.h>
 #endif
-
 #include <kvm.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <err.h>
 #include <fcntl.h>
-#include <limits.h>	/* _POSIX2_LINE_MAX */
+#include <limits.h>
+#include <vis.h>
+
 
 #if defined(__NetBSD__)
 #define kinfo_proc	kinfo_proc2
@@ -61,18 +61,15 @@ static int verbose = 0;
 /* Avoid ANSI terminal injection from processes that overwrite their argv */
 static char *
 safe_arg(char *arg) {
-	if (arg == NULL)
-		return NULL;
+	static char *vis = NULL;
 
-	char *s = arg;
-	while (*s != '\0') {
-		if (!isprint((int)*s)) {
-			*s = '.';
-		}
-		s++;
-	}
+	if (vis == NULL)
+		vis = malloc(PATH_MAX * 4 + 1);
+	if (vis == NULL)
+		err(1, "malloc");
+	(void) strnvis(vis, PATH_MAX * 4 + 1, arg, VIS_TAB | VIS_NL | VIS_CSTYLE);
 
-	return arg;
+	return vis;
 }
 
 static void
