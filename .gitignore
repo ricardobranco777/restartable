@@ -1,5 +1,6 @@
 restartable
 restartable.exe
-unix/.depend*
-unix/*.o
-unix/restartable
+*/.depend*
+*/*.o
+*/restartable
+*/.gdbinit
