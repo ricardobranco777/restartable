@@ -120,7 +120,7 @@ print_all(void) {
 	struct dirent *entry;
 	int *pids = NULL;
 	struct stat st;
-	int nproc;
+	unsigned int i, nproc;
 
 	/* Get the number of processes through st_nlink */
 	if (stat("/proc", &st) == -1)
@@ -144,7 +144,7 @@ print_all(void) {
 
 	qsort(pids, ++nproc, sizeof(int), compare_pids);
 
-	for (int i = 0; i < nproc; i++)
+	for (i = 0; i < nproc; i++)
 		print_proc(pids[i]);
 
 	free(pids);
