@@ -26,11 +26,6 @@
  * SUCH DAMAGE.
  */
 
-#ifdef __NetBSD__
-/* struct kinfo_proc */
-#define _KMEMUSER
-#endif
-
 #include <sys/types.h>
 #if defined(__FreeBSD__)
 #include <sys/user.h>
@@ -51,12 +46,11 @@
 #include <vis.h>
 
 #if defined(__NetBSD__)
-#define kinfo_proc	kinfo_proc2
-#define ki_comm	 	p_comm
+#define ki_comm		p_comm
 #define ki_login	p_login
-#define ki_pid	 	p_pid
-#define ki_ppid	 	p_ppid
-#define ki_ruid	 	p_ruid
+#define ki_pid		p_pid
+#define ki_ppid		p_ppid
+#define ki_ruid		p_ruid
 #endif
 
 #include "extern.h"

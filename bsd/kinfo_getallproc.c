@@ -4,10 +4,6 @@
 #include <sys/proc.h>
 #include <stdlib.h>
 
-#if defined(__NetBSD__)
-#define kinfo_proc	kinfo_proc2
-#endif
-
 #include "extern.h"
 
 /*
@@ -39,13 +35,13 @@ kinfo_getallproc(int *cntp)
 	mib[1] = KERN_PROC2;
 	mib[2] = KERN_PROC_ALL;
 	mib[3] = 0;
-	mib[4] = sizeof(struct kinfo_proc2);
+	mib[4] = sizeof(struct kinfo_proc);
 	mib[5] = 0;
 
 	len = 0;
 	if (sysctl(mib, 6, NULL, &len, NULL, 0) < 0)
 		return (NULL);
-	mib[5] = (int) (len / sizeof(struct kinfo_proc2));
+	mib[5] = (int) (len / sizeof(struct kinfo_proc));
 
 	kipp = malloc(len);
 	if (kipp == NULL)
@@ -56,6 +52,7 @@ kinfo_getallproc(int *cntp)
 	*cntp = len / sizeof(*kipp);
 	kinfo_proc_sort(kipp, len / sizeof(*kipp));
 	return (kipp);
+
 bad:
 	*cntp = 0;
 	free(kipp);
