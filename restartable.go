@@ -54,7 +54,8 @@ var (
 // Quote special characters
 func quoteString(str string) string {
 	if len(str) > 0 {
-		return strconv.Quote(str)[1 : len(str)-1]
+		str = strconv.Quote(str)
+		return str[1 : len(str) - 1]
 	}
 	return ""
 }
