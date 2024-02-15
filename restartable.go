@@ -170,8 +170,10 @@ func getInfo(pidInt int) (info *proc, err error) {
 
 	cmdline := []string{}
 	if bytes.HasSuffix(data, []byte("\x00")) {
-		cmdline = strings.Split(quoteString(string(data)), "\x00")
+		cmdline = strings.Split(string(data), "\x00")
 		cmdline = cmdline[:len(cmdline)-1]
+	} else {
+		cmdline = append(cmdline, string(data))
 	}
 
 	command := ""
@@ -183,7 +185,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 		if err != nil {
 			exe = ""
 		}
-		exe = strings.TrimSuffix(quoteString(exe), " (deleted)")
+		exe = strings.TrimSuffix(exe, " (deleted)")
 
 		if len(cmdline) > 0 && !strings.HasPrefix(cmdline[0], "/") && exe != "" && filepath.Base(cmdline[0]) == filepath.Base(exe) {
 			command = exe + " " + strings.Join(cmdline[1:], " ")
@@ -191,7 +193,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 			command = strings.Join(cmdline, " ")
 		}
 	} else {
-		command = quoteString(regexName.FindStringSubmatch(status)[1])
+		command = regexName.FindStringSubmatch(status)[1]
 		// The command may be truncated to 15 chars in /proc/<pid>/status
 		// Also, kernel usermode helpers use "none"
 		if len(cmdline) > 0 && cmdline[0] != "" && (len(command) == 15 || command == "none") {
