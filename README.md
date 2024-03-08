@@ -58,7 +58,7 @@ Be careful because depending on the service you may lose connection or get kicke
   - You must run it as root to see information about other processes
   - The output is different from `zypper ps` to be easily parseable
 
-## FreeBSD / NetBSD version
+## FreeBSD / DragonflyBSD / NetBSD version
 
 [bsd](bsd)
 

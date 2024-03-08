@@ -34,6 +34,8 @@
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #include <util.h>
+#elif defined(__DragonFly__)
+#include <sys/kinfo.h>
 #endif
 
 #include <stdio.h>
@@ -51,6 +53,12 @@
 #define ki_pid		p_pid
 #define ki_ppid		p_ppid
 #define ki_ruid		p_ruid
+#elif defined(__DragonFly__)
+#define ki_comm		kp_comm
+#define ki_login	kp_login
+#define ki_pid		kp_pid
+#define ki_ppid		kp_ppid
+#define ki_ruid		kp_ruid
 #endif
 
 #include "extern.h"
@@ -90,7 +98,7 @@ print_argv(pid_t pid) {
 
 static void
 print_proc(const struct kinfo_proc *kp) {
-#if defined(__FreeBSD__)
+#if defined(__FreeBSD__) || defined(__DragonFly__)
 	int i, count;
 #elif defined(__NetBSD__)
 	unsigned int i;
@@ -102,7 +110,7 @@ print_proc(const struct kinfo_proc *kp) {
 
 	struct kinfo_vmentry *vmmap = kinfo_getvmmap(kp->ki_pid, &count);
 	if (vmmap == NULL) {
-		if (errno != EPERM)
+		if (errno != EPERM && errno != ENOENT)
 			warn("kinfo_getvmmap(): %d", kp->ki_pid);
 		return;
 	}
