@@ -97,6 +97,9 @@ print_proc(const struct kinfo_proc *kp) {
 	size_t count;
 #endif
 
+	if (kp->ki_pid == 0)
+		return;
+
 	struct kinfo_vmentry *vmmap = kinfo_getvmmap(kp->ki_pid, &count);
 	if (vmmap == NULL) {
 		if (errno != EPERM)
@@ -124,7 +127,7 @@ print_all(void) {
 	if (procs == NULL)
 		err(1, "kinfo_getallproc()");
 
-	for (int i = 1; i < count; i++)
+	for (int i = 0; i < count; i++)
 		print_proc(&procs[i]);
 
 	free(procs);
