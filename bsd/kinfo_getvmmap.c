@@ -85,7 +85,7 @@ kinfo_getvmmap(pid_t pid, int *cntp)
 		kiv[i].kve_protection = (prot[2] == 'x') ? KVME_PROT_EXEC : 0;
 		if (!strcmp(type, "vnode")) {
 			kiv[i].kve_type |= KVME_TYPE_VNODE;
-			if (lstat(kiv[i].kve_path, &st) < 0)
+			if (kiv[i].kve_path[0] != '/' || lstat(kiv[i].kve_path, &st) < 0)
 				kiv[i].kve_path[0] = '\0';
 		}
 	}
