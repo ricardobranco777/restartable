@@ -90,6 +90,7 @@ kinfo_getvmmap(pid_t pid, int *cntp)
 		}
 	}
 
+	free(buf);
 	return kiv;
 
 bad2:
