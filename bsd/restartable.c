@@ -118,7 +118,7 @@ print_proc(const struct kinfo_proc *kp) {
 
 	for (i = 0; i < count; i++)
 		if (vmmap[i].kve_type == KVME_TYPE_VNODE && vmmap[i].kve_protection & KVME_PROT_EXEC && vmmap[i].kve_path[0] == '\0') {
-			printf("%d\t%d\t%d\t%s\t%s\n", kp->ki_pid, kp->ki_ppid, kp->ki_ruid, kp->ki_login, safe_arg((char *)kp->ki_comm));
+			printf("%d\t%d\t%d\t%s\t%s\n", kp->ki_pid, kp->ki_ppid, kp->ki_ruid, kp->ki_login, safe_arg(kp->ki_comm));
 			if (verbose)
 				print_argv(kp->ki_pid);
 			break;
