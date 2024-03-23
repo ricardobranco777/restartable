@@ -82,6 +82,7 @@ safe_arg(const char *arg) {
 static void
 print_argv(pid_t pid) {
 	char **argv = kinfo_getargv(pid);
+	char **argvp = argv;
 
 	if (argv == NULL) {
 		warn("%d: kinfo_getargv", pid);
@@ -93,7 +94,7 @@ print_argv(pid_t pid) {
 	} while (*++argv);
 	printf("\n");
 
-	free_argv(argv);
+	free_argv(argvp);
 }
 
 static void
