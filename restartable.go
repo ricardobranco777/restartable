@@ -55,7 +55,7 @@ var (
 func quoteString(str string) string {
 	if len(str) > 0 {
 		str = strconv.Quote(str)
-		return str[1 : len(str) - 1]
+		return str[1 : len(str)-1]
 	}
 	return ""
 }
@@ -247,7 +247,7 @@ func printInfoAll(dir string) error {
 					channel[pid] <- info
 				} else {
 					if err != nil {
-						fmt.Println("ERROR: ", err)
+						log.Print(err)
 					}
 					close(channel[pid])
 				}
