@@ -15,12 +15,12 @@
 static char *kinfo_getpathname(pid_t);
 
 #if !defined(__FreeBSD__)
-static char *xbasename(const char *s);
+static char *xbasename(char *s);
 
 static char *
-xbasename(const char *s) {
+xbasename(char *s) {
 	char *t = strrchr(s, '/');
-	return ++t;
+	return (t == NULL ? (char *)s : ++t);
 }
 #endif
 
