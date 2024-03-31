@@ -12,10 +12,50 @@
 
 #include "extern.h"
 
+static char *kinfo_getpathname(pid_t);
+
+#if !defined(__FreeBSD__)
+static char *xbasename(const char *s);
+
+static char *
+xbasename(const char *s) {
+	char *t = strrchr(s, '/');
+	return ++t;
+}
+#endif
+
+static char *
+kinfo_getpathname(pid_t pid)
+{
+	char path[MAXPATHLEN];
+	int mib[4];
+	size_t len;
+
+	mib[0] = CTL_KERN;
+#if defined(__FreeBSD__) || defined(__DragonFly__)
+	mib[1] = KERN_PROC;
+	mib[2] = KERN_PROC_PATHNAME;
+	mib[3] = pid;
+#elif defined(__NetBSD__)
+	mib[1] = KERN_PROC_ARGS;
+	mib[2] = pid;
+	mib[3] = KERN_PROC_PATHNAME;
+#endif
+	len = MAXPATHLEN;
+	if (sysctl(mib, 4, path, &len, NULL, 0) < 0)
+		return (NULL);
+	path[len] = '\0';
+
+	return strdup(path);
+}
+
 void
 free_argv(char **argv)
 {
 	char **argvp = argv;
+
+	if (argv == NULL)
+		return;
 
 	while (*argvp != NULL) {
 		free(*argvp);
@@ -28,11 +68,11 @@ free_argv(char **argv)
 char **
 kinfo_getargv(pid_t pid)
 {
-	char *buf = NULL;
-	char **argv;
-	int mib[4];
-	int i, argc;
 	size_t off = 0, len = ARG_MAX;
+	char **argv = NULL;
+	char *buf = NULL;
+	int i = 0, argc;
+	int mib[4];
 
 	buf = malloc(len);
 	if (buf == NULL)
@@ -58,12 +98,23 @@ kinfo_getargv(pid_t pid)
 	if (argv == NULL)
 		goto bad;
 
-	for (i = 0; i < argc; i++) {
-		argv[i] = strdup(buf + off);
-		if (argv[i] == NULL) {
-			free_argv(argv);
-			goto bad;
+#if !defined(__FreeBSD__)
+	if (buf[0] != '/') {
+		argv[0] = kinfo_getpathname(pid);
+		if (argv[0] != NULL) {
+			if (!strcmp(xbasename(buf), xbasename(argv[0]))) {
+				off += strlen(buf) + 1;
+				i++;
+			} else
+				free(argv[0]);
 		}
+	}
+#endif
+
+	for (; i < argc; i++) {
+		argv[i] = strdup(buf + off);
+		if (argv[i] == NULL)
+			goto bad;
 		off += strlen(argv[i]) + 1;
 	}
 	argv[argc] = NULL;
@@ -72,6 +123,7 @@ kinfo_getargv(pid_t pid)
 	return (argv);
 
 bad:
+	free_argv(argv);
 	free(buf);
 	return (NULL);
 }
