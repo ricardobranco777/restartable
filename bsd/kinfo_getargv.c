@@ -20,7 +20,7 @@ static char *xbasename(const char *s);
 static char *
 xbasename(const char *s) {
 	char *t = strrchr(s, '/');
-	return ++t;
+	return (t == NULL ? s : ++t);
 }
 #endif
 
