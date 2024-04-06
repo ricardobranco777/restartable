@@ -61,3 +61,7 @@ Be careful because depending on the service you may lose connection or get kicke
 ## FreeBSD / DragonflyBSD / NetBSD version
 
 [bsd](bsd)
+
+## Solaris version
+
+[solaris](solaris)
