@@ -67,7 +67,7 @@ kinfo_getvmmap(pid_t pid, int *cntp)
 	if ((buf = procmap(pid)) == NULL)
 		return (NULL);
 
-	*cntp = memnchr(buf, '\n', strlen(buf));
+	*cntp = count_char(buf, '\n', strlen(buf));
 	kiv = calloc(*cntp, sizeof(struct kinfo_vmentry));
 	if (kiv == NULL)
 		goto bad2;

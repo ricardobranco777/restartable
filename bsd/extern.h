@@ -1,6 +1,6 @@
 #include <sys/types.h>
 
-int memnchr(const void *, int, size_t);
+int count_char(const void *, int, size_t);
 void free_argv(char **);
 char **kinfo_getargv(pid_t pid);
 

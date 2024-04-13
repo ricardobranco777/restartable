@@ -3,7 +3,7 @@
 #include "extern.h"
 
 int
-memnchr(const void *p, int c, size_t len)
+count_char(const void *p, int c, size_t len)
 {
 	int n = 0;
 

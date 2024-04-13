@@ -93,7 +93,7 @@ kinfo_getargv(pid_t pid)
 		goto bad;
 	buf[len] = '\0';
 
-	argc = memnchr(buf, '\0', len);
+	argc = count_char(buf, '\0', len);
 	argv = malloc((argc + 1) * sizeof(char *));
 	if (argv == NULL)
 		goto bad;
