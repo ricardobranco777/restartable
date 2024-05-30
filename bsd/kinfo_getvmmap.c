@@ -19,7 +19,7 @@ procmap(pid_t pid)
 	ssize_t n;
 	int fd;
 
-	(void) snprintf(path, sizeof(path), "/proc/%d/map", pid);
+	(void)snprintf(path, sizeof(path), "/proc/%d/map", pid);
 	if ((fd = open(path, O_RDONLY)) == -1)
 		return (NULL);
 
@@ -32,7 +32,8 @@ procmap(pid_t pid)
 		if ((n == -1 && errno == EFBIG) || n == size) {
 			size <<= 1;
 			if (size < 0)
-				errc(1, EOVERFLOW, "map too large for pid %d", pid);
+				errc(1, EOVERFLOW, "map too large for pid %d",
+				    pid);
 			free(buf);
 			if ((buf = calloc(1, size)) == NULL)
 				goto bad;
@@ -45,13 +46,13 @@ procmap(pid_t pid)
 			break;
 	}
 
-	(void) close(fd);
+	(void)close(fd);
 	return (buf);
 
 bad:
 	if (buf != NULL)
 		free(buf);
-	(void) close(fd);
+	(void)close(fd);
 	return (NULL);
 }
 
@@ -81,11 +82,14 @@ kinfo_getvmmap(pid_t pid, int *cntp)
 		 * Parse lines like this:
 		 * 0x0000000000400000 0x0000000000403000 -1 -1 0xfffff80119599400 r-x 2 0 0x0000 COW NC vnode /bin/cat
 		 */
-		(void) sscanf(token, "%*x %*x %*d %*d %*x %3s %*d %*d %*x %*s %*s %10s %4096[^\n]", prot, type, kiv[i].kve_path);
+		(void)sscanf(token,
+		    "%*x %*x %*d %*d %*x %3s %*d %*d %*x %*s %*s %10s %4096[^\n]",
+		    prot, type, kiv[i].kve_path);
 		kiv[i].kve_protection = (prot[2] == 'x') ? KVME_PROT_EXEC : 0;
 		if (!strcmp(type, "vnode")) {
 			kiv[i].kve_type |= KVME_TYPE_VNODE;
-			if (kiv[i].kve_path[0] != '/' || lstat(kiv[i].kve_path, &st) < 0)
+			if (kiv[i].kve_path[0] != '/' ||
+			    lstat(kiv[i].kve_path, &st) < 0)
 				kiv[i].kve_path[0] = '\0';
 		}
 	}
