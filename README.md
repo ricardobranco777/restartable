@@ -58,6 +58,10 @@ Be careful because depending on the service you may lose connection or get kicke
   - You must run it as root to see information about other processes
   - The output is different from `zypper ps` to be easily parseable
 
+## Similar projects
+
+  - [needrestart](https://github.com/liske/needrestart)
+
 ## FreeBSD / DragonflyBSD / NetBSD version
 
 [bsd](bsd)
