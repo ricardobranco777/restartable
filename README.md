@@ -60,7 +60,8 @@ Be careful because depending on the service you may lose connection or get kicke
 
 ## Similar projects
 
-  - [needrestart](https://github.com/liske/needrestart)
+  - [needrestart](https://github.com/liske/needrestart): Plugin used by Debian/Ubuntu systems
+  - [checkrestart](https://github.com/Freaky/checkrestart): FreeBSD port
 
 ## FreeBSD / DragonflyBSD / NetBSD version
 
