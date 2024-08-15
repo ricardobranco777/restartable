@@ -32,7 +32,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt install golint
-        GOBIN=$HOME/.local/bin go install honnef.co/go/tools/cmd/staticcheck@2023.1.6
+        GOBIN=$HOME/.local/bin go install honnef.co/go/tools/cmd/staticcheck@2024.1.1
         make
 
     - name: Run tests
