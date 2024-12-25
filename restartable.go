@@ -39,6 +39,8 @@ var opts struct {
 	version bool
 }
 
+var pid1 string
+
 var (
 	regexDeleted       = regexp.MustCompile(`/.* \(deleted\)$`)
 	regexIgnored       = regexp.MustCompile(`[^/]*/(dev|memfd:|run| )`)
@@ -48,6 +50,7 @@ var (
 	regexRuid          = regexp.MustCompile(`(?m)^Uid:\t([0-9]+)\t`)
 	regexSystemService = regexp.MustCompile(`\d+:[^:]*:/system\.slice/(?:.*/)?(.*)\.service$`)
 	regexUserService   = regexp.MustCompile(`\d+:[^:]*:/user\.slice/(?:.*/)?(.*)\.service$`)
+	regexOpenRC        = regexp.MustCompile(`\d+:name=openrc:/(.*)$`)
 )
 
 // Quote special characters
@@ -129,10 +132,14 @@ func getService(dirFd int, pid string) (service string) {
 	}
 
 	var match []string
-	if opts.user {
-		match = regexUserService.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
-	} else {
-		match = regexSystemService.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
+	if pid1 == "systemd" {
+		if opts.user {
+			match = regexUserService.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
+		} else {
+			match = regexSystemService.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
+		}
+	} else if pid1 == "openrc" {
+		match = regexOpenRC.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
 	}
 
 	if len(match) > 1 {
@@ -215,6 +222,12 @@ func getInfo(pidInt int) (info *proc, err error) {
 }
 
 func printInfoAll(dir string) error {
+	if data, err := os.ReadFile(filepath.Join(opts.proc, "1", "comm")); err != nil {
+		log.Fatal(err)
+	} else {
+		pid1 = strings.TrimSpace(string(data))
+	}
+
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
