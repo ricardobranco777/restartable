@@ -32,7 +32,6 @@ const version string = "2.2.2"
 var usernames map[int]string
 
 var opts struct {
-	proc    string
 	short   int
 	user    bool
 	verbose bool
@@ -150,7 +149,7 @@ func getService(dirFd int, pid string) (service string) {
 
 func getInfo(pidInt int) (info *proc, err error) {
 	pid := strconv.Itoa(pidInt)
-	dirFd, err := unix.Open(filepath.Join(opts.proc, pid), unix.O_DIRECTORY|unix.O_PATH|unix.O_NOATIME, unix.O_RDONLY)
+	dirFd, err := unix.Open(filepath.Join("/proc", pid), unix.O_DIRECTORY|unix.O_PATH|unix.O_NOATIME, unix.O_RDONLY)
 	if err != nil {
 		return nil, err
 	}
@@ -221,16 +220,43 @@ func getInfo(pidInt int) (info *proc, err error) {
 	}, nil
 }
 
-func printInfoAll(dir string) error {
-	if data, err := os.ReadFile(filepath.Join(opts.proc, "1", "comm")); err != nil {
+func init() {
+	log.SetPrefix("ERROR: ")
+	log.SetFlags(0)
+
+	flag.CountVarP(&opts.short, "short", "s", "Create a short table not showing the deleted files. Given twice, show only processes which are associated with a system service. Given three times, list the associated system service names only.")
+	flag.BoolVarP(&opts.user, "user", "u", false, "show user services instead of system services")
+	flag.BoolVarP(&opts.verbose, "verbose", "v", false, "verbose output")
+	flag.BoolVarP(&opts.version, "version", "V", false, "show version and exit")
+	flag.Parse()
+
+	if opts.version {
+		fmt.Printf("v%s %v %s/%s\n", version, runtime.Version(), runtime.GOOS, runtime.GOARCH)
+		os.Exit(0)
+	}
+
+	if flag.NArg() > 0 {
+		flag.Usage()
+		os.Exit(1)
+	}
+}
+
+func main() {
+	usernames = make(map[int]string)
+
+	if os.Geteuid() != 0 {
+		fmt.Fprintln(os.Stderr, "WARN: Run this program as root")
+	}
+
+	if data, err := os.ReadFile("/proc/1/comm"); err != nil {
 		log.Fatal(err)
 	} else {
 		pid1 = strings.TrimSpace(string(data))
 	}
 
-	entries, err := os.ReadDir(dir)
+	entries, err := os.ReadDir("/proc")
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
 
 	var pids []int
@@ -296,41 +322,4 @@ func printInfoAll(dir string) error {
 			fmt.Println(service)
 		}
 	}
-
-	return nil
-}
-
-func init() {
-	log.SetPrefix("ERROR: ")
-	log.SetFlags(0)
-
-	flag.StringVarP(&opts.proc, "proc", "P", "/proc", "proc directory")
-	flag.CountVarP(&opts.short, "short", "s", "Create a short table not showing the deleted files. Given twice, show only processes which are associated with a system service. Given three times, list the associated system service names only.")
-	flag.BoolVarP(&opts.user, "user", "u", false, "show user services instead of system services")
-	flag.BoolVarP(&opts.verbose, "verbose", "v", false, "verbose output")
-	flag.BoolVarP(&opts.version, "version", "V", false, "show version and exit")
-	flag.Parse()
-
-	if opts.version {
-		fmt.Printf("v%s %v %s/%s\n", version, runtime.Version(), runtime.GOOS, runtime.GOARCH)
-		os.Exit(0)
-	}
-
-	if flag.NArg() > 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
-}
-
-func main() {
-	usernames = make(map[int]string)
-
-	if os.Geteuid() != 0 {
-		fmt.Fprintln(os.Stderr, "WARN: Run this program as root")
-	}
-
-	if err := printInfoAll(opts.proc); err != nil {
-		log.Fatal(err)
-	}
-	os.Exit(0)
 }
