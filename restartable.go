@@ -22,12 +22,18 @@ import flag "github.com/spf13/pflag"
 
 const version string = "2.3.0"
 
-type proc struct {
+type Info struct {
 	command string
 	deleted []string
 	ppid    string
 	uid     int
 	service string
+}
+
+// ProcPidFS abstracts access to a /proc/<pid> directory
+type ProcPidFS struct {
+	dirFd int
+	pid   int
 }
 
 var usernames map[int]string
@@ -62,8 +68,28 @@ func quoteString(str string) string {
 	return ""
 }
 
-func readFile(dirFd int, path string) ([]byte, error) {
-	fd, err := unix.Openat(dirFd, path, unix.O_RDONLY|unix.O_NOFOLLOW, 0)
+// OpenProc opens a /proc/<pid> directory and returns a ProcPidFS instance
+func OpenProcPid(pid int) (*ProcPidFS, error) {
+	path := filepath.Join("/proc", strconv.Itoa(pid))
+	dirFd, err := unix.Open(path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_PATH, 0)
+	if err != nil {
+		return nil, &os.PathError{Op: "open", Path: path, Err: err}
+	}
+	return &ProcPidFS{dirFd: dirFd, pid: pid}, nil
+}
+
+// Close releases the file descriptor
+func (p *ProcPidFS) Close() error {
+	err := unix.Close(p.dirFd)
+	if err != nil {
+		return &os.PathError{Op: "close", Path: "/proc", Err: err}
+	}
+	return nil
+}
+
+// ReadFile reads a file inside /proc/<pid>
+func (p *ProcPidFS) ReadFile(path string) ([]byte, error) {
+	fd, err := unix.Openat(p.dirFd, path, unix.O_RDONLY|unix.O_NOFOLLOW, 0)
 	if err != nil {
 		return nil, &os.PathError{Op: "openat", Path: path, Err: err}
 	}
@@ -86,10 +112,11 @@ func readFile(dirFd int, path string) ([]byte, error) {
 	}
 }
 
-func readLink(dirFd int, path string) (string, error) {
+// ReadLink reads a symbolic link inside /proc/<pid>
+func (p *ProcPidFS) ReadLink(path string) (string, error) {
 	for size := unix.PathMax; ; size *= 2 {
 		data := make([]byte, unix.PathMax)
-		if n, err := unix.Readlinkat(dirFd, path, data); err != nil {
+		if n, err := unix.Readlinkat(p.dirFd, path, data); err != nil {
 			return "", &os.PathError{Op: "readlinkat", Path: path, Err: err}
 		} else if n != size {
 			return string(data[:n]), nil
@@ -97,6 +124,7 @@ func readLink(dirFd int, path string) (string, error) {
 	}
 }
 
+// Get username from UID
 func getUser(uid int) string {
 	var username string
 
@@ -114,8 +142,9 @@ func getUser(uid int) string {
 	return username
 }
 
-func getDeleted(dirFd int) ([]string, error) {
-	maps, err := readFile(dirFd, "maps")
+// GetDeleted retrieves deleted file mappings for a process
+func (p *ProcPidFS) GetDeleted() ([]string, error) {
+	maps, err := p.ReadFile("maps")
 	if err != nil {
 		if errors.Is(err, unix.EACCES) {
 			err = nil
@@ -135,15 +164,16 @@ func getDeleted(dirFd int) ([]string, error) {
 	return files, nil
 }
 
-func getService(dirFd int) string {
-	cgroup, err := readFile(dirFd, "cgroup")
+// GetService retrieves the service name
+func (p *ProcPidFS) GetService(pid1 string, isUser bool) string {
+	cgroup, err := p.ReadFile("cgroup")
 	if err != nil {
 		return "-"
 	}
 
 	var match []string
 	if pid1 == "systemd" {
-		if opts.user {
+		if isUser {
 			match = regexUserService.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
 		} else {
 			match = regexSystemService.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
@@ -158,22 +188,21 @@ func getService(dirFd int) string {
 	return "-"
 }
 
-func getInfo(pid int) (*proc, error) {
-	path := filepath.Join("/proc", strconv.Itoa(pid))
-	dirFd, err := unix.Open(path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_PATH, 0)
-	if err != nil {
-		return nil, &os.PathError{Op: "open", Path: path, Err: err}
-	}
-	defer unix.Close(dirFd)
-
-	files, err := getDeleted(dirFd)
+func getInfo(pid int) (*Info, error) {
+	p, err := OpenProcPid(pid)
 	if err != nil {
 		return nil, err
-	} else if len(files) == 0 {
+	}
+	defer p.Close()
+
+	deleted, err := p.GetDeleted()
+	if err != nil {
+		return nil, err
+	} else if len(deleted) == 0 {
 		return nil, nil
 	}
 
-	data, err := readFile(dirFd, "status")
+	data, err := p.ReadFile("status")
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +210,7 @@ func getInfo(pid int) (*proc, error) {
 
 	uid, _ := strconv.Atoi(regexRuid.FindStringSubmatch(status)[1])
 
-	data, err = readFile(dirFd, "cmdline")
+	data, err = p.ReadFile("cmdline")
 	if err != nil {
 		return nil, err
 	}
@@ -198,13 +227,12 @@ func getInfo(pid int) (*proc, error) {
 	if opts.verbose {
 		// Use full path
 
-		// cmdline is empty if zombie, but zombies have void proc.maps
-		exe, err := readLink(dirFd, "exe")
+		// cmdline is empty if zombie, but zombies have void maps
+		exe, err := p.ReadLink("exe")
 		if err != nil {
 			exe = ""
 		}
 		exe = strings.TrimSuffix(exe, " (deleted)")
-
 		if len(cmdline) > 0 && !strings.HasPrefix(cmdline[0], "/") && exe != "" && filepath.Base(cmdline[0]) == filepath.Base(exe) {
 			command = exe + " " + strings.Join(cmdline[1:], " ")
 		} else {
@@ -224,12 +252,12 @@ func getInfo(pid int) (*proc, error) {
 		}
 	}
 
-	return &proc{
+	return &Info{
 		command: quoteString(command),
-		deleted: files,
+		deleted: deleted,
 		ppid:    regexPpid.FindStringSubmatch(status)[1],
 		uid:     uid,
-		service: getService(dirFd),
+		service: p.GetService(pid1, opts.user),
 	}, nil
 }
 
@@ -286,9 +314,9 @@ func main() {
 		fmt.Printf("%s\t%s\t%s\t%-20s\t%20s\t%s\n", "PID", "PPID", "UID", "User", "Service", "Command")
 	}
 
-	channel := make(map[int]chan *proc, len(pids))
+	channel := make(map[int]chan *Info, len(pids))
 	for _, pid := range pids {
-		channel[pid] = make(chan *proc)
+		channel[pid] = make(chan *Info)
 	}
 
 	go func() {
