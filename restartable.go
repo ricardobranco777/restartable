@@ -19,6 +19,8 @@ import (
 
 import flag "github.com/spf13/pflag"
 
+const version string = "2.3.0"
+
 type proc struct {
 	command string
 	deleted []string
@@ -26,8 +28,6 @@ type proc struct {
 	uid     int
 	service string
 }
-
-const version string = "2.2.2"
 
 var usernames map[int]string
 
