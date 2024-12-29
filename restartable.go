@@ -64,7 +64,7 @@ func quoteString(str string) string {
 func readFile(dirFd int, path string) ([]byte, error) {
 	fd, err := unix.Openat(dirFd, path, unix.O_NOFOLLOW, unix.O_RDONLY)
 	if err != nil {
-		return []byte{}, err
+		return nil, &os.PathError{Op: "openat", Path: path, Err: err}
 	}
 	defer unix.Close(fd)
 
@@ -77,6 +77,9 @@ func readFile(dirFd int, path string) ([]byte, error) {
 		if n, err := unix.Read(fd, data[len(data):cap(data)]); n > 0 {
 			data = data[:len(data)+n]
 		} else {
+			if err != nil {
+				err = &os.PathError{Op: "read", Path: path, Err: err}
+			}
 			return data, err
 		}
 	}
@@ -86,14 +89,16 @@ func readLink(dirFd int, path string) (string, error) {
 	for size := unix.PathMax; ; size *= 2 {
 		data := make([]byte, unix.PathMax)
 		if n, err := unix.Readlinkat(dirFd, path, data); err != nil {
-			return "", err
+			return "", &os.PathError{Op: "readlinkat", Path: path, Err: err}
 		} else if n != size {
-			return string(data[:n]), err
+			return string(data[:n]), nil
 		}
 	}
 }
 
-func getUser(uid int) (username string) {
+func getUser(uid int) string {
+	var username string
+
 	if _, ok := usernames[uid]; ok {
 		username = usernames[uid]
 	} else {
@@ -104,15 +109,17 @@ func getUser(uid int) (username string) {
 		}
 		usernames[uid] = username
 	}
+
 	return username
 }
 
-func getDeleted(dirFd int, pid string) (files []string) {
+func getDeleted(dirFd int) ([]string, error) {
 	maps, err := readFile(dirFd, "maps")
 	if err != nil {
-		return
+		return nil, err
 	}
 
+	var files []string
 	for _, str := range strings.Split(string(maps), "\n") {
 		file := regexDeleted.FindString(str)
 		if file != "" && regexExecMap.MatchString(str) && !regexIgnored.MatchString(str) {
@@ -121,10 +128,10 @@ func getDeleted(dirFd int, pid string) (files []string) {
 	}
 	sort.Strings(files)
 
-	return
+	return files, nil
 }
 
-func getService(dirFd int, pid string) (service string) {
+func getService(dirFd int) string {
 	cgroup, err := readFile(dirFd, "cgroup")
 	if err != nil {
 		return "-"
@@ -147,17 +154,19 @@ func getService(dirFd int, pid string) (service string) {
 	return "-"
 }
 
-func getInfo(pidInt int) (info *proc, err error) {
-	pid := strconv.Itoa(pidInt)
-	dirFd, err := unix.Open(filepath.Join("/proc", pid), unix.O_DIRECTORY|unix.O_PATH, unix.O_RDONLY)
+func getInfo(pid int) (*proc, error) {
+	path := filepath.Join("/proc", strconv.Itoa(pid))
+	dirFd, err := unix.Open(path, unix.O_DIRECTORY|unix.O_PATH, unix.O_RDONLY)
 	if err != nil {
-		return nil, err
+		return nil, &os.PathError{Op: "open", Path: path, Err: err}
 	}
 	defer unix.Close(dirFd)
 
-	files := getDeleted(dirFd, pid)
-	if len(files) == 0 {
-		return
+	files, err := getDeleted(dirFd)
+	if err != nil {
+		return nil, err
+	} else if len(files) == 0 {
+		return nil, nil
 	}
 
 	data, err := readFile(dirFd, "status")
@@ -216,7 +225,7 @@ func getInfo(pidInt int) (info *proc, err error) {
 		deleted: files,
 		ppid:    regexPpid.FindStringSubmatch(status)[1],
 		uid:     uid,
-		service: getService(dirFd, pid),
+		service: getService(dirFd),
 	}, nil
 }
 
