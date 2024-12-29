@@ -23,22 +23,18 @@ procmap(pid_t pid)
 	if ((fd = open(path, O_RDONLY)) == -1)
 		return (NULL);
 
-	if ((buf = calloc(1, size)) == NULL)
-		goto bad;
-
 	/* This file must be read in one go */
 	while (1) {
+		if ((buf = calloc(1, size)) == NULL)
+			goto bad;
 		n = read(fd, buf, size);
 		if ((n == -1 && errno == EFBIG) || n == size) {
 			size <<= 1;
 			if (size < 0)
-				errc(1, EOVERFLOW, "map too large for pid %d",
-				    pid);
-			free(buf);
-			if ((buf = calloc(1, size)) == NULL)
-				goto bad;
+				errc(1, EFBIG, "map too large for pid %d", pid);
 			if (lseek(fd, 0, SEEK_SET) == -1)
 				goto bad;
+			free(buf);
 		}
 		else if (n == -1)
 			goto bad;
