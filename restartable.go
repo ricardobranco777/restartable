@@ -63,7 +63,7 @@ func quoteString(str string) string {
 }
 
 func readFile(dirFd int, path string) ([]byte, error) {
-	fd, err := unix.Openat(dirFd, path, unix.O_NOFOLLOW, unix.O_RDONLY)
+	fd, err := unix.Openat(dirFd, path, unix.O_RDONLY|unix.O_NOFOLLOW, 0)
 	if err != nil {
 		return nil, &os.PathError{Op: "openat", Path: path, Err: err}
 	}
@@ -160,7 +160,7 @@ func getService(dirFd int) string {
 
 func getInfo(pid int) (*proc, error) {
 	path := filepath.Join("/proc", strconv.Itoa(pid))
-	dirFd, err := unix.Open(path, unix.O_DIRECTORY|unix.O_PATH, unix.O_RDONLY)
+	dirFd, err := unix.Open(path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_PATH, 0)
 	if err != nil {
 		return nil, &os.PathError{Op: "open", Path: path, Err: err}
 	}
