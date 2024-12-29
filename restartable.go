@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"golang.org/x/sys/unix"
 	"log"
@@ -116,6 +117,9 @@ func getUser(uid int) string {
 func getDeleted(dirFd int) ([]string, error) {
 	maps, err := readFile(dirFd, "maps")
 	if err != nil {
+		if errors.Is(err, unix.EACCES) {
+			err = nil
+		}
 		return nil, err
 	}
 
