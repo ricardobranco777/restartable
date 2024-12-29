@@ -149,7 +149,7 @@ func getService(dirFd int, pid string) (service string) {
 
 func getInfo(pidInt int) (info *proc, err error) {
 	pid := strconv.Itoa(pidInt)
-	dirFd, err := unix.Open(filepath.Join("/proc", pid), unix.O_DIRECTORY|unix.O_PATH|unix.O_NOATIME, unix.O_RDONLY)
+	dirFd, err := unix.Open(filepath.Join("/proc", pid), unix.O_DIRECTORY|unix.O_PATH, unix.O_RDONLY)
 	if err != nil {
 		return nil, err
 	}
