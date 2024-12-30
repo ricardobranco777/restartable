@@ -36,13 +36,6 @@ type ProcPidFS struct {
 	pid   int
 }
 
-var opts struct {
-	short   int
-	user    bool
-	verbose bool
-	version bool
-}
-
 var pid1 string
 
 var (
@@ -136,7 +129,7 @@ func (p *ProcPidFS) GetDeleted() ([]string, error) {
 }
 
 // GetService retrieves the service name
-func (p *ProcPidFS) GetService(pid1 string, isUser bool) string {
+func (p *ProcPidFS) GetService(pid1 string, userService bool) string {
 	cgroup, err := p.ReadFile("cgroup")
 	if err != nil {
 		return "-"
@@ -144,7 +137,7 @@ func (p *ProcPidFS) GetService(pid1 string, isUser bool) string {
 
 	var match []string
 	if pid1 == "systemd" {
-		if isUser {
+		if userService {
 			match = regexUserService.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
 		} else {
 			match = regexSystemService.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
@@ -159,7 +152,7 @@ func (p *ProcPidFS) GetService(pid1 string, isUser bool) string {
 	return "-"
 }
 
-func getInfo(pid int) (*Info, error) {
+func getInfo(pid int, fullPath bool, userService bool) (*Info, error) {
 	p, err := OpenProcPid(pid)
 	if err != nil {
 		return nil, err
@@ -195,7 +188,7 @@ func getInfo(pid int) (*Info, error) {
 	}
 
 	command := ""
-	if opts.verbose {
+	if fullPath {
 		// Use full path
 
 		// cmdline is empty if zombie, but zombies have void maps
@@ -228,7 +221,7 @@ func getInfo(pid int) (*Info, error) {
 		deleted: deleted,
 		ppid:    regexPpid.FindStringSubmatch(status)[1],
 		uid:     uid,
-		service: p.GetService(pid1, opts.user),
+		service: p.GetService(pid1, userService),
 	}, nil
 }
 
@@ -250,9 +243,16 @@ func getUser(uid int) string {
 	}
 }
 
-func init() {
+func main() {
 	log.SetPrefix("ERROR: ")
 	log.SetFlags(0)
+
+	var opts struct {
+		short   int
+		user    bool
+		verbose bool
+		version bool
+	}
 
 	flag.CountVarP(&opts.short, "short", "s", "Create a short table not showing the deleted files. Given twice, show only processes which are associated with a system service. Given three times, list the associated system service names only.")
 	flag.BoolVarP(&opts.user, "user", "u", false, "show user services instead of system services")
@@ -269,9 +269,7 @@ func init() {
 		flag.Usage()
 		os.Exit(1)
 	}
-}
 
-func main() {
 	if os.Geteuid() != 0 {
 		fmt.Fprintln(os.Stderr, "WARN: Run this program as root")
 	}
@@ -307,7 +305,7 @@ func main() {
 	go func() {
 		for _, pid := range pids {
 			go func(pid int) {
-				info, err := getInfo(pid)
+				info, err := getInfo(pid, opts.verbose, opts.user)
 				if err != nil {
 					log.Print(err)
 				}
