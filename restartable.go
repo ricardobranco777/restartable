@@ -152,34 +152,10 @@ func (p *ProcPidFS) GetService(pid1 string, userService bool) string {
 	return "-"
 }
 
-func getInfo(pid int, fullPath bool, userService bool) (*Info, error) {
-	p, err := OpenProcPid(pid)
+func (p *ProcPidFS) GetCommand(fullPath bool, status string) (string, error) {
+	data, err := p.ReadFile("cmdline")
 	if err != nil {
-		if errors.Is(err, unix.ENOENT) {
-			err = nil
-		}
-		return nil, err
-	}
-	defer p.Close()
-
-	deleted, err := p.GetDeleted()
-	if err != nil {
-		return nil, err
-	} else if len(deleted) == 0 {
-		return nil, nil
-	}
-
-	data, err := p.ReadFile("status")
-	if err != nil {
-		return nil, err
-	}
-	status := string(data)
-
-	uid, _ := strconv.Atoi(regexRuid.FindStringSubmatch(status)[1])
-
-	data, err = p.ReadFile("cmdline")
-	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	cmdline := []string{}
@@ -190,7 +166,7 @@ func getInfo(pid int, fullPath bool, userService bool) (*Info, error) {
 		cmdline = append(cmdline, string(data))
 	}
 
-	command := ""
+	var command string
 	if fullPath {
 		// Use full path
 
@@ -218,6 +194,38 @@ func getInfo(pid int, fullPath bool, userService bool) (*Info, error) {
 			command = strings.Split(command, " ")[0]
 		}
 	}
+	return command, nil
+}
+
+func getInfo(pid int, fullPath bool, userService bool) (*Info, error) {
+	p, err := OpenProcPid(pid)
+	if err != nil {
+		if errors.Is(err, unix.ENOENT) {
+			err = nil
+		}
+		return nil, err
+	}
+	defer p.Close()
+
+	deleted, err := p.GetDeleted()
+	if err != nil {
+		return nil, err
+	} else if len(deleted) == 0 {
+		return nil, nil
+	}
+
+	data, err := p.ReadFile("status")
+	if err != nil {
+		return nil, err
+	}
+	status := string(data)
+
+	command, err := p.GetCommand(fullPath, status)
+	if err != nil {
+		return nil, err
+	}
+
+	uid, _ := strconv.Atoi(regexRuid.FindStringSubmatch(status)[1])
 
 	return &Info{
 		command: quoteString(command),
