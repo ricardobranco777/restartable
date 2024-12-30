@@ -36,8 +36,6 @@ type ProcPidFS struct {
 	pid   int
 }
 
-var usernames map[int]string
-
 var opts struct {
 	short   int
 	user    bool
@@ -58,15 +56,6 @@ var (
 	regexUserService   = regexp.MustCompile(`\d+:[^:]*:/user\.slice/(?:.*/)?(.*)\.service$`)
 	regexOpenRC        = regexp.MustCompile(`\d+:name=openrc:/(.*)$`)
 )
-
-// Quote special characters
-func quoteString(str string) string {
-	if len(str) > 0 {
-		str = strconv.Quote(str)
-		return str[1 : len(str)-1]
-	}
-	return ""
-}
 
 // OpenProc opens a /proc/<pid> directory and returns a ProcPidFS instance
 func OpenProcPid(pid int) (*ProcPidFS, error) {
@@ -122,24 +111,6 @@ func (p *ProcPidFS) ReadLink(path string) (string, error) {
 			return string(data[:n]), nil
 		}
 	}
-}
-
-// Get username from UID
-func getUser(uid int) string {
-	var username string
-
-	if _, ok := usernames[uid]; ok {
-		username = usernames[uid]
-	} else {
-		if info, err := user.LookupId(strconv.Itoa(uid)); err != nil {
-			username = "-"
-		} else {
-			username = info.Username
-		}
-		usernames[uid] = username
-	}
-
-	return username
 }
 
 // GetDeleted retrieves deleted file mappings for a process
@@ -261,6 +232,24 @@ func getInfo(pid int) (*Info, error) {
 	}, nil
 }
 
+// Quote special characters
+func quoteString(str string) string {
+	if len(str) > 0 {
+		str = strconv.Quote(str)
+		return str[1 : len(str)-1]
+	}
+	return ""
+}
+
+// Get username from UID
+func getUser(uid int) string {
+	if info, err := user.LookupId(strconv.Itoa(uid)); err != nil {
+		return "-"
+	} else {
+		return info.Username
+	}
+}
+
 func init() {
 	log.SetPrefix("ERROR: ")
 	log.SetFlags(0)
@@ -283,8 +272,6 @@ func init() {
 }
 
 func main() {
-	usernames = make(map[int]string)
-
 	if os.Geteuid() != 0 {
 		fmt.Fprintln(os.Stderr, "WARN: Run this program as root")
 	}
