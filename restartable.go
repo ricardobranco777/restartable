@@ -152,7 +152,7 @@ func GetService(fs ProcPidFS, userService bool) string {
 }
 
 // GetCommand retrieves the command
-func GetCommand(fs ProcPidFS, fullPath bool, status string) (string, error) {
+func GetCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) {
 	data, err := fs.ReadFile("cmdline")
 	if err != nil {
 		return "", err
@@ -182,7 +182,7 @@ func GetCommand(fs ProcPidFS, fullPath bool, status string) (string, error) {
 			command = strings.Join(cmdline, " ")
 		}
 	} else {
-		command = regexName.FindStringSubmatch(status)[1]
+		command = statusName
 		// The command may be truncated to 15 chars in /proc/<pid>/status
 		// Also, kernel usermode helpers use "none"
 		if len(cmdline) > 0 && cmdline[0] != "" && (len(command) == 15 || command == "none") {
@@ -212,7 +212,7 @@ func GetProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 	}
 	status := string(data)
 
-	command, err := GetCommand(fs, fullPath, status)
+	command, err := GetCommand(fs, fullPath, regexName.FindStringSubmatch(status)[1])
 	if err != nil {
 		return nil, err
 	}
