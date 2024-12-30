@@ -55,7 +55,7 @@ func OpenProcPid(pid int) (*ProcPidFS, error) {
 	path := filepath.Join("/proc", strconv.Itoa(pid))
 	dirFd, err := unix.Open(path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_PATH, 0)
 	if err != nil {
-		return nil, &os.PathError{Op: "open", Path: path, Err: err}
+		return nil, &os.PathError{Op: "open", Path: fmt.Sprintf("/proc/%d", pid), Err: err}
 	}
 	return &ProcPidFS{dirFd: dirFd, pid: pid}, nil
 }
@@ -73,7 +73,7 @@ func (p *ProcPidFS) Close() error {
 func (p *ProcPidFS) ReadFile(path string) ([]byte, error) {
 	fd, err := unix.Openat(p.dirFd, path, unix.O_RDONLY|unix.O_NOFOLLOW, 0)
 	if err != nil {
-		return nil, &os.PathError{Op: "openat", Path: path, Err: err}
+		return nil, &os.PathError{Op: "openat", Path: fmt.Sprintf("/proc/%d/%s", p.pid, path), Err: err}
 	}
 	defer unix.Close(fd)
 
@@ -87,7 +87,7 @@ func (p *ProcPidFS) ReadFile(path string) ([]byte, error) {
 			data = data[:len(data)+n]
 		} else {
 			if err != nil {
-				err = &os.PathError{Op: "read", Path: path, Err: err}
+				err = &os.PathError{Op: "read", Path: fmt.Sprintf("/proc/%d/%s", p.pid, path), Err: err}
 			}
 			return data, err
 		}
@@ -99,7 +99,7 @@ func (p *ProcPidFS) ReadLink(path string) (string, error) {
 	for size := unix.PathMax; ; size *= 2 {
 		data := make([]byte, unix.PathMax)
 		if n, err := unix.Readlinkat(p.dirFd, path, data); err != nil {
-			return "", &os.PathError{Op: "readlinkat", Path: path, Err: err}
+			return "", &os.PathError{Op: "readlinkat", Path: fmt.Sprintf("/proc/%d/%s", p.pid, path), Err: err}
 		} else if n != size {
 			return string(data[:n]), nil
 		}
