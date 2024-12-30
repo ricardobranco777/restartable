@@ -295,8 +295,6 @@ func main() {
 	}
 	sort.Ints(pids)
 
-	services := make(map[string]bool)
-
 	if opts.short < 3 {
 		fmt.Printf("%s\t%s\t%s\t%-20s\t%20s\t%s\n", "PID", "PPID", "UID", "User", "Service", "Command")
 	}
@@ -309,24 +307,22 @@ func main() {
 	go func() {
 		for _, pid := range pids {
 			go func(pid int) {
-				if info, err := getInfo(pid); info != nil && err == nil {
-					channel[pid] <- info
-				} else {
-					if err != nil {
-						log.Print(err)
-					}
-					close(channel[pid])
+				info, err := getInfo(pid)
+				if err != nil {
+					log.Print(err)
 				}
+				channel[pid] <- info
 			}(pid)
 		}
 	}()
 
+	services := make(map[string]bool)
 	for _, pid := range pids {
 		proc := <-channel[pid]
 		if proc == nil {
 			continue
 		}
-		//close(channel[pid])
+		close(channel[pid])
 		if opts.short < 3 {
 			fmt.Printf("%d\t%s\t%d\t%-20s\t%20s\t%s\n", pid, proc.ppid, proc.uid, getUser(proc.uid), proc.service, proc.command)
 		} else if proc.service != "-" {
