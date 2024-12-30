@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 import flag "github.com/spf13/pflag"
@@ -25,6 +26,7 @@ const version string = "2.3.0"
 type Info struct {
 	command string
 	deleted []string
+	pid     int
 	ppid    string
 	uid     int
 	service string
@@ -226,6 +228,7 @@ func getInfo(pid int) (*Info, error) {
 	return &Info{
 		command: quoteString(command),
 		deleted: deleted,
+		pid:     pid,
 		ppid:    regexPpid.FindStringSubmatch(status)[1],
 		uid:     uid,
 		service: p.GetService(pid1, opts.user),
@@ -301,34 +304,29 @@ func main() {
 		fmt.Printf("%s\t%s\t%s\t%-20s\t%20s\t%s\n", "PID", "PPID", "UID", "User", "Service", "Command")
 	}
 
-	channel := make(map[int]chan *Info, len(pids))
+	infoCh := make(chan *Info)
+	var wg sync.WaitGroup
+
 	for _, pid := range pids {
-		channel[pid] = make(chan *Info)
+		wg.Add(1)
+		go func(pid int) {
+			defer wg.Done()
+			if info, err := getInfo(pid); err != nil {
+				log.Print(err)
+			} else if info != nil {
+				infoCh <- info
+			}
+		}(pid)
 	}
 
 	go func() {
-		for _, pid := range pids {
-			go func(pid int) {
-				if info, err := getInfo(pid); info != nil && err == nil {
-					channel[pid] <- info
-				} else {
-					if err != nil {
-						log.Print(err)
-					}
-					close(channel[pid])
-				}
-			}(pid)
-		}
+		defer close(infoCh)
+		wg.Wait()
 	}()
 
-	for _, pid := range pids {
-		proc := <-channel[pid]
-		if proc == nil {
-			continue
-		}
-		//close(channel[pid])
+	for proc := range infoCh {
 		if opts.short < 3 {
-			fmt.Printf("%d\t%s\t%d\t%-20s\t%20s\t%s\n", pid, proc.ppid, proc.uid, getUser(proc.uid), proc.service, proc.command)
+			fmt.Printf("%d\t%s\t%d\t%-20s\t%20s\t%s\n", proc.pid, proc.ppid, proc.uid, getUser(proc.uid), proc.service, proc.command)
 		} else if proc.service != "-" {
 			services[proc.service] = true
 		}
