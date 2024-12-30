@@ -35,18 +35,13 @@ type RealProcPidFS struct {
 	pid   int
 }
 
-var pid1 string
-
 var (
-	regexDeleted       = regexp.MustCompile(`/.* \(deleted\)$`)
-	regexIgnored       = regexp.MustCompile(`[^/]*/(dev|memfd:|run| )`)
-	regexExecMap       = regexp.MustCompile(`^[0-9a-f]+-[0-9a-f]+ r(w|-)x`)
-	regexName          = regexp.MustCompile(`(?m)^Name:\t(.*)$`)
-	regexPpid          = regexp.MustCompile(`(?m)^PPid:\t(.*)$`)
-	regexRuid          = regexp.MustCompile(`(?m)^Uid:\t([0-9]+)\t`)
-	regexSystemService = regexp.MustCompile(`\d+:[^:]*:/system\.slice/(?:.*/)?(.*)\.service$`)
-	regexUserService   = regexp.MustCompile(`\d+:[^:]*:/user\.slice/(?:.*/)?(.*)\.service$`)
-	regexOpenRC        = regexp.MustCompile(`\d+:name=openrc:/(.*)$`)
+	regexDeleted = regexp.MustCompile(`/.* \(deleted\)$`)
+	regexIgnored = regexp.MustCompile(`[^/]*/(dev|memfd:|run| )`)
+	regexExecMap = regexp.MustCompile(`^[0-9a-f]+-[0-9a-f]+ r(w|-)x`)
+	regexName    = regexp.MustCompile(`(?m)^Name:\t(.*)$`)
+	regexPpid    = regexp.MustCompile(`(?m)^PPid:\t(.*)$`)
+	regexRuid    = regexp.MustCompile(`(?m)^Uid:\t([0-9]+)\t`)
 )
 
 // OpenProc opens a /proc/<pid> directory and returns a ProcPidFS instance
@@ -144,19 +139,14 @@ func GetService(fs ProcPidFS, userService bool) string {
 	}
 	cgroup := strings.TrimSpace(string(data))
 
-	var match []string
-	if pid1 == "systemd" {
-		if userService {
-			match = regexUserService.FindStringSubmatch(cgroup)
-		} else {
-			match = regexSystemService.FindStringSubmatch(cgroup)
+	if strings.HasSuffix(cgroup, ".service") {
+		// Systemd
+		if userService && strings.Contains(cgroup, "/user.slice/") || !userService && strings.Contains(cgroup, "/system.slice/") {
+			return strings.TrimSuffix(cgroup[strings.LastIndex(cgroup, "/")+1:], ".service")
 		}
-	} else if pid1 == "openrc" {
-		match = regexOpenRC.FindStringSubmatch(cgroup)
-	}
-
-	if len(match) > 1 {
-		return match[1]
+	} else if strings.Contains(cgroup, ":name=openrc:/") {
+		// OpenRC
+		return cgroup[strings.LastIndex(cgroup, "/")+1:]
 	}
 	return "-"
 }
@@ -375,12 +365,6 @@ func main() {
 
 	if os.Geteuid() != 0 {
 		fmt.Fprintln(os.Stderr, "WARN: Run this program as root")
-	}
-
-	if data, err := os.ReadFile("/proc/1/comm"); err != nil {
-		log.Fatal(err)
-	} else {
-		pid1 = strings.TrimSpace(string(data))
 	}
 
 	RunProcessMonitor(DefaultProcessLister{}, opts, func(pid int) (ProcPidFS, error) {
