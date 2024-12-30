@@ -22,16 +22,15 @@ import flag "github.com/spf13/pflag"
 
 const version string = "2.3.0"
 
-type Info struct {
-	command string
-	deleted []string
-	ppid    string
-	uid     int
-	service string
+// ProcPidFS defines an interface for /proc/<pid> filesystem access
+type ProcPidFS interface {
+	ReadFile(path string) ([]byte, error)
+	ReadLink(path string) (string, error)
+	Close() error
 }
 
-// ProcPidFS abstracts access to a /proc/<pid> directory
-type ProcPidFS struct {
+// RealProcPidFS implements ProcPidFS for real /proc/<pid> filesystem
+type RealProcPidFS struct {
 	dirFd int
 	pid   int
 }
@@ -51,17 +50,17 @@ var (
 )
 
 // OpenProc opens a /proc/<pid> directory and returns a ProcPidFS instance
-func OpenProcPid(pid int) (*ProcPidFS, error) {
+func OpenProcPid(pid int) (*RealProcPidFS, error) {
 	path := filepath.Join("/proc", strconv.Itoa(pid))
 	dirFd, err := unix.Open(path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_PATH, 0)
 	if err != nil {
 		return nil, &os.PathError{Op: "open", Path: fmt.Sprintf("/proc/%d", pid), Err: err}
 	}
-	return &ProcPidFS{dirFd: dirFd, pid: pid}, nil
+	return &RealProcPidFS{dirFd: dirFd, pid: pid}, nil
 }
 
 // Close releases the file descriptor
-func (p *ProcPidFS) Close() error {
+func (p *RealProcPidFS) Close() error {
 	err := unix.Close(p.dirFd)
 	if err != nil {
 		return &os.PathError{Op: "close", Path: "/proc", Err: err}
@@ -70,7 +69,7 @@ func (p *ProcPidFS) Close() error {
 }
 
 // ReadFile reads a file inside /proc/<pid>
-func (p *ProcPidFS) ReadFile(path string) ([]byte, error) {
+func (p *RealProcPidFS) ReadFile(path string) ([]byte, error) {
 	fd, err := unix.Openat(p.dirFd, path, unix.O_RDONLY|unix.O_NOFOLLOW, 0)
 	if err != nil {
 		return nil, &os.PathError{Op: "openat", Path: fmt.Sprintf("/proc/%d/%s", p.pid, path), Err: err}
@@ -95,7 +94,7 @@ func (p *ProcPidFS) ReadFile(path string) ([]byte, error) {
 }
 
 // ReadLink reads a symbolic link inside /proc/<pid>
-func (p *ProcPidFS) ReadLink(path string) (string, error) {
+func (p *RealProcPidFS) ReadLink(path string) (string, error) {
 	for size := unix.PathMax; ; size *= 2 {
 		data := make([]byte, unix.PathMax)
 		if n, err := unix.Readlinkat(p.dirFd, path, data); err != nil {
@@ -106,9 +105,18 @@ func (p *ProcPidFS) ReadLink(path string) (string, error) {
 	}
 }
 
+// ProcessInfo holds process information
+type ProcessInfo struct {
+	Command string
+	Deleted []string
+	Ppid    string
+	Uid     int
+	Service string
+}
+
 // GetDeleted retrieves deleted file mappings for a process
-func (p *ProcPidFS) GetDeleted() ([]string, error) {
-	maps, err := p.ReadFile("maps")
+func GetDeleted(fs ProcPidFS) ([]string, error) {
+	maps, err := fs.ReadFile("maps")
 	if err != nil {
 		if errors.Is(err, unix.EACCES) {
 			err = nil
@@ -120,7 +128,7 @@ func (p *ProcPidFS) GetDeleted() ([]string, error) {
 	for _, str := range strings.Split(string(maps), "\n") {
 		file := regexDeleted.FindString(str)
 		if file != "" && regexExecMap.MatchString(str) && !regexIgnored.MatchString(str) {
-			files = append(files, quoteString(strings.TrimSuffix(file, " (deleted)")))
+			files = append(files, QuoteString(strings.TrimSuffix(file, " (deleted)")))
 		}
 	}
 	sort.Strings(files)
@@ -129,21 +137,22 @@ func (p *ProcPidFS) GetDeleted() ([]string, error) {
 }
 
 // GetService retrieves the service name
-func (p *ProcPidFS) GetService(pid1 string, userService bool) string {
-	cgroup, err := p.ReadFile("cgroup")
+func GetService(fs ProcPidFS, userService bool) string {
+	data, err := fs.ReadFile("cgroup")
 	if err != nil {
 		return "-"
 	}
+	cgroup := strings.TrimSpace(string(data))
 
 	var match []string
 	if pid1 == "systemd" {
 		if userService {
-			match = regexUserService.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
+			match = regexUserService.FindStringSubmatch(cgroup)
 		} else {
-			match = regexSystemService.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
+			match = regexSystemService.FindStringSubmatch(cgroup)
 		}
 	} else if pid1 == "openrc" {
-		match = regexOpenRC.FindStringSubmatch(strings.TrimSpace(string(cgroup)))
+		match = regexOpenRC.FindStringSubmatch(cgroup)
 	}
 
 	if len(match) > 1 {
@@ -152,8 +161,9 @@ func (p *ProcPidFS) GetService(pid1 string, userService bool) string {
 	return "-"
 }
 
-func (p *ProcPidFS) GetCommand(fullPath bool, status string) (string, error) {
-	data, err := p.ReadFile("cmdline")
+// GetCommand retrieves the command
+func GetCommand(fs ProcPidFS, fullPath bool, status string) (string, error) {
+	data, err := fs.ReadFile("cmdline")
 	if err != nil {
 		return "", err
 	}
@@ -171,7 +181,7 @@ func (p *ProcPidFS) GetCommand(fullPath bool, status string) (string, error) {
 		// Use full path
 
 		// cmdline is empty if zombie, but zombies have void maps
-		exe, err := p.ReadLink("exe")
+		exe, err := fs.ReadLink("exe")
 		if err != nil {
 			exe = ""
 		}
@@ -197,47 +207,39 @@ func (p *ProcPidFS) GetCommand(fullPath bool, status string) (string, error) {
 	return command, nil
 }
 
-func getInfo(pid int, fullPath bool, userService bool) (*Info, error) {
-	p, err := OpenProcPid(pid)
-	if err != nil {
-		if errors.Is(err, unix.ENOENT) {
-			err = nil
-		}
-		return nil, err
-	}
-	defer p.Close()
-
-	deleted, err := p.GetDeleted()
+// GetProcessInfo gets process information
+func GetProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo, error) {
+	deleted, err := GetDeleted(fs)
 	if err != nil {
 		return nil, err
 	} else if len(deleted) == 0 {
 		return nil, nil
 	}
 
-	data, err := p.ReadFile("status")
+	data, err := fs.ReadFile("status")
 	if err != nil {
 		return nil, err
 	}
 	status := string(data)
 
-	command, err := p.GetCommand(fullPath, status)
+	command, err := GetCommand(fs, fullPath, status)
 	if err != nil {
 		return nil, err
 	}
 
 	uid, _ := strconv.Atoi(regexRuid.FindStringSubmatch(status)[1])
 
-	return &Info{
-		command: quoteString(command),
-		deleted: deleted,
-		ppid:    regexPpid.FindStringSubmatch(status)[1],
-		uid:     uid,
-		service: p.GetService(pid1, userService),
+	return &ProcessInfo{
+		Command: QuoteString(command),
+		Deleted: deleted,
+		Ppid:    regexPpid.FindStringSubmatch(status)[1],
+		Uid:     uid,
+		Service: GetService(fs, userService),
 	}, nil
 }
 
 // Quote special characters
-func quoteString(str string) string {
+func QuoteString(str string) string {
 	if len(str) > 0 {
 		str = strconv.Quote(str)
 		return str[1 : len(str)-1]
@@ -246,7 +248,7 @@ func quoteString(str string) string {
 }
 
 // Get username from UID
-func getUser(uid int) string {
+func GetUser(uid int) string {
 	if info, err := user.LookupId(strconv.Itoa(uid)); err != nil {
 		return "-"
 	} else {
@@ -254,16 +256,106 @@ func getUser(uid int) string {
 	}
 }
 
+type ProcessLister interface {
+	ListProcesses() ([]int, error)
+}
+
+type DefaultProcessLister struct{}
+
+func (d DefaultProcessLister) ListProcesses() ([]int, error) {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return nil, err
+	}
+
+	var pids []int
+	for _, entry := range entries {
+		if pid, err := strconv.Atoi(entry.Name()); err == nil {
+			pids = append(pids, pid)
+		}
+	}
+	sort.Ints(pids)
+	return pids, nil
+}
+
+type Opts struct {
+	short   int
+	user    bool
+	verbose bool
+	version bool
+}
+
+func RunProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (ProcPidFS, error)) {
+	pids, err := lister.ListProcesses()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if opts.short < 3 {
+		fmt.Printf("%s\t%s\t%s\t%-20s\t%20s\t%s\n", "PID", "PPID", "UID", "User", "Service", "Command")
+	}
+
+	channel := make(map[int]chan *ProcessInfo, len(pids))
+	for _, pid := range pids {
+		channel[pid] = make(chan *ProcessInfo)
+	}
+
+	go func() {
+		for _, pid := range pids {
+			go func(pid int) {
+				fs, err := openProc(pid)
+				if err != nil {
+					if !errors.Is(err, unix.ENOENT) {
+						log.Print(err)
+					}
+					return
+				}
+				defer fs.Close()
+				info, err := GetProcessInfo(fs, opts.verbose, opts.user)
+				if err != nil {
+					log.Print(err)
+				}
+				channel[pid] <- info
+			}(pid)
+		}
+	}()
+
+	services := make(map[string]bool)
+	for _, pid := range pids {
+		proc := <-channel[pid]
+		if proc == nil {
+			continue
+		}
+		close(channel[pid])
+		if opts.short < 3 {
+			fmt.Printf("%d\t%s\t%d\t%-20s\t%20s\t%s\n", pid, proc.Ppid, proc.Uid, GetUser(proc.Uid), proc.Service, proc.Command)
+		} else if proc.Service != "-" {
+			services[proc.Service] = true
+		}
+		if opts.short == 0 {
+			for _, deleted := range proc.Deleted {
+				fmt.Printf("\t%s\n", deleted)
+			}
+		}
+	}
+
+	if opts.short == 3 && len(services) > 0 {
+		// Print services in sorted mode
+		ss := make([]string, 0, len(services))
+		for s := range services {
+			ss = append(ss, s)
+		}
+		sort.Strings(ss)
+		for _, service := range ss {
+			fmt.Println(service)
+		}
+	}
+}
+
 func main() {
 	log.SetPrefix("ERROR: ")
 	log.SetFlags(0)
 
-	var opts struct {
-		short   int
-		user    bool
-		verbose bool
-		version bool
-	}
+	var opts Opts
 
 	flag.CountVarP(&opts.short, "short", "s", "Create a short table not showing the deleted files. Given twice, show only processes which are associated with a system service. Given three times, list the associated system service names only.")
 	flag.BoolVarP(&opts.user, "user", "u", false, "show user services instead of system services")
@@ -291,68 +383,7 @@ func main() {
 		pid1 = strings.TrimSpace(string(data))
 	}
 
-	entries, err := os.ReadDir("/proc")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var pids []int
-	for _, entry := range entries {
-		if pid, err := strconv.Atoi(entry.Name()); err == nil {
-			pids = append(pids, pid)
-		}
-	}
-	sort.Ints(pids)
-
-	if opts.short < 3 {
-		fmt.Printf("%s\t%s\t%s\t%-20s\t%20s\t%s\n", "PID", "PPID", "UID", "User", "Service", "Command")
-	}
-
-	channel := make(map[int]chan *Info, len(pids))
-	for _, pid := range pids {
-		channel[pid] = make(chan *Info)
-	}
-
-	go func() {
-		for _, pid := range pids {
-			go func(pid int) {
-				info, err := getInfo(pid, opts.verbose, opts.user)
-				if err != nil {
-					log.Print(err)
-				}
-				channel[pid] <- info
-			}(pid)
-		}
-	}()
-
-	services := make(map[string]bool)
-	for _, pid := range pids {
-		proc := <-channel[pid]
-		if proc == nil {
-			continue
-		}
-		close(channel[pid])
-		if opts.short < 3 {
-			fmt.Printf("%d\t%s\t%d\t%-20s\t%20s\t%s\n", pid, proc.ppid, proc.uid, getUser(proc.uid), proc.service, proc.command)
-		} else if proc.service != "-" {
-			services[proc.service] = true
-		}
-		if opts.short == 0 {
-			for _, deleted := range proc.deleted {
-				fmt.Printf("\t%s\n", deleted)
-			}
-		}
-	}
-
-	if opts.short == 3 && len(services) > 0 {
-		// Print services in sorted mode
-		ss := make([]string, 0, len(services))
-		for s := range services {
-			ss = append(ss, s)
-		}
-		sort.Strings(ss)
-		for _, service := range ss {
-			fmt.Println(service)
-		}
-	}
+	RunProcessMonitor(DefaultProcessLister{}, opts, func(pid int) (ProcPidFS, error) {
+		return OpenProcPid(pid)
+	})
 }
