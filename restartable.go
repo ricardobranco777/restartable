@@ -155,6 +155,9 @@ func (p *ProcPidFS) GetService(pid1 string, userService bool) string {
 func getInfo(pid int, fullPath bool, userService bool) (*Info, error) {
 	p, err := OpenProcPid(pid)
 	if err != nil {
+		if errors.Is(err, unix.ENOENT) {
+			err = nil
+		}
 		return nil, err
 	}
 	defer p.Close()
