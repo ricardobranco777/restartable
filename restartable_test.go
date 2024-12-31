@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/fs"
+	"slices"
 	"testing"
 	"testing/fstest"
 )
@@ -66,16 +67,85 @@ func mockProcFS(pid int, files map[string]string, symlinks map[string]string) *M
 
 // Test getDeleted
 func TestGetDeleted(t *testing.T) {
-	procFS := mockProcFS(1234, map[string]string{
-		"maps": "00400000-00452000 r-xp 00000000 fd:00 12345 /bin/bash (deleted)\n",
-	}, nil)
-
-	files, err := getDeleted(procFS)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
+	tests := []struct {
+		name        string
+		files       map[string]string
+		expectedCmd []string
+		expectedErr bool
+	}{
+		{
+			name: "Test with deleted file",
+			files: map[string]string{
+				"maps": "00400000-0040b000 r-xp 00000000 08:01 1234 /path/to/executable (deleted)\n",
+			},
+			expectedCmd: []string{"/path/to/executable"},
+			expectedErr: false,
+		},
+		{
+			name: "Test with no deleted files",
+			files: map[string]string{
+				"maps": "00400000-0040b000 r-xp 00000000 08:01 1234 /path/to/executable\n",
+			},
+			expectedCmd: []string{},
+			expectedErr: false,
+		},
+		{
+			name: "Test with permission error",
+			files: map[string]string{
+				"maps": "",
+			},
+			expectedCmd: []string{},
+			expectedErr: false, // EACCES is handled, so no error should propagate
+		},
+		{
+			name:        "Test with missing maps file",
+			files:       map[string]string{},
+			expectedCmd: []string{},
+			expectedErr: true, // Should return error as "maps" is missing
+		},
+		{
+			name: "Test with invalid mapping",
+			files: map[string]string{
+				"maps": "00400000-0040b000 r-xp 00000000 08:01 1234 /path/to/someotherfile (deleted)\n",
+			},
+			expectedCmd: []string{"/path/to/someotherfile"},
+			expectedErr: false,
+		},
+		{
+			name: "Test with multiple deleted files",
+			files: map[string]string{
+				"maps": "00400000-0040b000 r-xp 00000000 08:01 1234 /path/to/executable1 (deleted)\n" +
+					"00410000-0041b000 r-xp 00000000 08:01 1234 /path/to/executable2 (deleted)\n",
+			},
+			expectedCmd: []string{"/path/to/executable1", "/path/to/executable2"},
+			expectedErr: false,
+		},
+		{
+			name: "Test with ignored files",
+			files: map[string]string{
+				"maps": "00400000-0040b000 r-xp 00000000 08:01 1234 /memfd:shm (deleted)\n",
+			},
+			expectedCmd: []string{},
+			expectedErr: false, // Should not include library.so as it is ignored
+		},
 	}
-	if len(files) != 1 || files[0] != "/bin/bash" {
-		t.Errorf("Expected ['/bin/bash'], got %v", files)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockFS := mockProcFS(1234, tt.files, nil)
+			files, err := getDeleted(mockFS)
+
+			if tt.expectedErr && err == nil {
+				t.Errorf("expected error but got none")
+			} else if !tt.expectedErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+
+			// Check if the expected files match the actual result
+			if !slices.Equal(files, tt.expectedCmd) {
+				t.Errorf("expected files: %v, got: %v", tt.expectedCmd, files)
+			}
+		})
 	}
 }
 
