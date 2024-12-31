@@ -81,13 +81,69 @@ func TestGetDeleted(t *testing.T) {
 
 // Test getService
 func TestGetService(t *testing.T) {
-	procFS := mockProcFS(1234, map[string]string{
-		"cgroup": "/proc/777/cgroup:0::/system.slice/sshd.service\n",
-	}, nil)
+	tests := []struct {
+		name        string
+		userService bool
+		files       map[string]string
+		expectedCmd string
+		expectedErr bool
+	}{
+		{
+			name:        "Test Systemd User Slice",
+			userService: true,
+			files:       map[string]string{"cgroup": "/user.slice/my.service"},
+			expectedCmd: "my",
+			expectedErr: false,
+		},
+		{
+			name:        "Test Systemd System Slice",
+			userService: false,
+			files:       map[string]string{"cgroup": "/system.slice/my.service"},
+			expectedCmd: "my",
+			expectedErr: false,
+		},
+		{
+			name:        "Test OpenRC Service",
+			userService: false,
+			files:       map[string]string{"cgroup": ":name=openrc:/myservice"},
+			expectedCmd: "myservice",
+			expectedErr: false,
+		},
+		{
+			name:        "Test Missing Cgroup File",
+			userService: true,
+			files:       map[string]string{},
+			expectedCmd: "-",
+			expectedErr: true,
+		},
+		{
+			name:        "Test Invalid Cgroup Format",
+			userService: false,
+			files:       map[string]string{"cgroup": "/invalid/format"},
+			expectedCmd: "-",
+			expectedErr: false,
+		},
+		{
+			name:        "Test No Service in Cgroup",
+			userService: false,
+			files:       map[string]string{"cgroup": "/system.slice/"},
+			expectedCmd: "-",
+			expectedErr: false,
+		},
+	}
 
-	service := getService(procFS, false)
-	if service != "sshd" {
-		t.Errorf("Expected 'sshd', got '%s'", service)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockFS := mockProcFS(1234, tt.files, nil)
+			cmd := getService(mockFS, tt.userService)
+
+			if tt.expectedErr && cmd != "-" {
+				t.Errorf("expected error or '-' but got: %v", cmd)
+			}
+			if !tt.expectedErr && cmd != tt.expectedCmd {
+				t.Errorf("expected command: %v, got: %v", tt.expectedCmd, cmd)
+			}
+		})
 	}
 }
 
