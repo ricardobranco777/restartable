@@ -235,11 +235,11 @@ func getProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 	statusUid := strings.Fields(parseStatusField(status, "Uid"))[0]
 	ppid, err := strconv.Atoi(statusPpid)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("invalid Ppid: %s", statusPpid)
 	}
 	uid, err := strconv.Atoi(statusUid)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("invalid Uid: %s", statusUid)
 	}
 
 	command, err := getCommand(fs, fullPath, statusName)
