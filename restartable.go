@@ -35,12 +35,6 @@ type RealProcPidFS struct {
 	pid   int
 }
 
-var (
-	regexDeleted = regexp.MustCompile(`/.* \(deleted\)$`)
-	regexIgnored = regexp.MustCompile(`[^/]*/(dev|memfd:|run| )`)
-	regexExecMap = regexp.MustCompile(`^[0-9a-f]+-[0-9a-f]+ r(w|-)x`)
-)
-
 // OpenProc opens a /proc/<pid> directory and returns a ProcPidFS instance
 func OpenProcPid(pid int) (*RealProcPidFS, error) {
 	path := filepath.Join("/proc", strconv.Itoa(pid))
@@ -97,14 +91,11 @@ func (p *RealProcPidFS) ReadLink(path string) (string, error) {
 	}
 }
 
-// ProcessInfo holds process information
-type ProcessInfo struct {
-	Command string
-	Deleted []string
-	Ppid    int
-	Uid     int
-	Service string
-}
+var (
+	regexDeleted = regexp.MustCompile(`/.* \(deleted\)$`)
+	regexIgnored = regexp.MustCompile(`^/(dev|memfd:|run| )`)
+	regexExecMap = regexp.MustCompile(`^[0-9a-f]+-[0-9a-f]+ r(w|-)x`)
+)
 
 // GetDeleted retrieves deleted file mappings for a process
 func GetDeleted(fs ProcPidFS) ([]string, error) {
@@ -117,9 +108,9 @@ func GetDeleted(fs ProcPidFS) ([]string, error) {
 	}
 
 	var files []string
-	for _, str := range strings.Split(string(maps), "\n") {
-		file := regexDeleted.FindString(str)
-		if file != "" && regexExecMap.MatchString(str) && !regexIgnored.MatchString(str) {
+	for _, line := range strings.Split(string(maps), "\n") {
+		file := regexDeleted.FindString(line)
+		if file != "" && regexExecMap.MatchString(line) && !regexIgnored.MatchString(file) {
 			files = append(files, QuoteString(strings.TrimSuffix(file, " (deleted)")))
 		}
 	}
@@ -194,7 +185,7 @@ func GetCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) 
 	return command, nil
 }
 
-// parseField extracts a field value from the status file given a key
+// parseStatusField extracts a field value from the status file given a key
 func parseStatusField(data, key string) string {
 	if key != "Name" {
 		key = "\n" + key
@@ -213,6 +204,15 @@ func parseStatusField(data, key string) string {
 	}
 
 	return strings.TrimSpace(data[start : start+end])
+}
+
+// ProcessInfo holds process information
+type ProcessInfo struct {
+	Command string
+	Deleted []string
+	Ppid    int
+	Uid     int
+	Service string
 }
 
 // GetProcessInfo gets process information
