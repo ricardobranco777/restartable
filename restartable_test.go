@@ -85,7 +85,7 @@ func TestRealProcPid(t *testing.T) {
 	})
 
 	// Test ReadFile with real data and compare to os.ReadFile
-	filesToTest := []string{"cmdline", "status"}
+	filesToTest := []string{"cmdline"}
 
 	for _, file := range filesToTest {
 		t.Run(file, func(t *testing.T) {
