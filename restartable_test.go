@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/fs"
+	"os"
 	"slices"
 	"testing"
 	"testing/fstest"
@@ -65,6 +66,66 @@ func mockProcFS(pid int, files map[string]string, symlinks map[string]string) *M
 	return &MockProcPidFS{fs: mockFS, pid: pid}
 }
 
+// Test using real /proc files
+func TestRealProcPid(t *testing.T) {
+	pid := os.Getpid()
+
+	fs, err := OpenProcPid(pid)
+	if err != nil {
+		t.Fatalf("failed to open /proc/%d: %v", pid, err)
+	}
+	defer fs.Close()
+
+	// Test PID method
+	t.Run("PID", func(t *testing.T) {
+		got := fs.PID()
+		if got != pid {
+			t.Errorf("PID() = %d, want %d", got, pid)
+		}
+	})
+
+	// Test ReadFile with real data and compare to os.ReadFile
+	filesToTest := []string{"cmdline", "status"}
+
+	for _, file := range filesToTest {
+		t.Run(file, func(t *testing.T) {
+			// Custom ReadFile method
+			data, err := fs.ReadFile(file)
+			if err != nil {
+				t.Errorf("failed to read /proc/%d/%s: %v", pid, file, err)
+			}
+
+			// Real ReadFile method (os.ReadFile)
+			realData, err := os.ReadFile(fmt.Sprintf("/proc/%d/%s", pid, file))
+			if err != nil {
+				t.Errorf("failed to read /proc/%d/%s using os.ReadFile: %v", pid, file, err)
+			}
+
+			// Compare the data returned by both methods
+			if string(data) != string(realData) {
+				t.Errorf("ReadFile data mismatch for %s: expected %s, got %s", file, string(realData), string(data))
+			}
+		})
+	}
+
+	// Test ReadLink with real data and compare to os.ReadLink
+	t.Run("exe", func(t *testing.T) {
+		link, err := fs.ReadLink("exe")
+		if err != nil {
+			t.Errorf("failed to read /proc/%d/exe: %v", pid, err)
+		}
+
+		realLink, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
+		if err != nil {
+			t.Errorf("failed to read /proc/%d/exe using os.Readlink: %v", pid, err)
+		}
+
+		if link != realLink {
+			t.Errorf("ReadLink data mismatch for exe: expected %s, got %s", realLink, link)
+		}
+	})
+}
+
 // Test getDeleted
 func TestGetDeleted(t *testing.T) {
 	tests := []struct {
@@ -101,7 +162,7 @@ func TestGetDeleted(t *testing.T) {
 			name:        "Test with missing maps file",
 			files:       map[string]string{},
 			expectedCmd: []string{},
-			expectedErr: true, // Should return error as "maps" is missing
+			expectedErr: true,
 		},
 		{
 			name: "Test with invalid mapping",
@@ -126,7 +187,7 @@ func TestGetDeleted(t *testing.T) {
 				"maps": "00400000-0040b000 r-xp 00000000 08:01 1234 /memfd:shm (deleted)\n",
 			},
 			expectedCmd: []string{},
-			expectedErr: false, // Should not include library.so as it is ignored
+			expectedErr: false,
 		},
 	}
 
@@ -141,7 +202,6 @@ func TestGetDeleted(t *testing.T) {
 				t.Errorf("unexpected error: %v", err)
 			}
 
-			// Check if the expected files match the actual result
 			if !slices.Equal(files, tt.expectedCmd) {
 				t.Errorf("expected files: %v, got: %v", tt.expectedCmd, files)
 			}
