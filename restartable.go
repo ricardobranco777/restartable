@@ -62,7 +62,7 @@ func (p *RealProcPidFS) ReadFile(path string) ([]byte, error) {
 	}
 	defer unix.Close(fd)
 
-	data := make([]byte, 0, 1024)
+	data := make([]byte, 0, 8192)
 	for {
 		if len(data) >= cap(data) {
 			d := append(data[:cap(data)], 0)
