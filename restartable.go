@@ -170,7 +170,7 @@ func getCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) 
 			exe = ""
 		}
 		exe = strings.TrimSuffix(exe, " (deleted)")
-		if len(cmdline) > 0 && !strings.HasPrefix(cmdline[0], "/") && exe != "" && filepath.Base(cmdline[0]) == filepath.Base(exe) {
+		if exe != "" && !strings.HasPrefix(cmdline[0], "/") && filepath.Base(cmdline[0]) == filepath.Base(exe) {
 			cmdline[0] = exe
 		}
 		command = strings.Join(cmdline, " ")
@@ -186,6 +186,10 @@ func getCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) 
 		} else {
 			command = strings.Split(command, " ")[0]
 		}
+	}
+
+	if command == "" {
+		command = "-"
 	}
 	return command, nil
 }
