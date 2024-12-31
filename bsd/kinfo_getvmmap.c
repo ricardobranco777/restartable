@@ -91,7 +91,7 @@ kinfo_getvmmap(pid_t pid, int *cntp)
 	}
 
 	free(buf);
-	return kiv;
+	return (kiv);
 
 bad2:
 	free(buf);

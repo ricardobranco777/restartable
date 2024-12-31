@@ -32,15 +32,16 @@
 #include <libutil.h>
 #elif defined(__NetBSD__)
 #include <sys/param.h>
-#include <sys/sysctl.h>
 #include <util.h>
 #elif defined(__DragonFly__)
 #include <sys/kinfo.h>
 #endif
+#include <sys/sysctl.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -76,7 +77,7 @@ safe_arg(const char *arg) {
 		err(1, "malloc");
 	(void)strvis(vis, arg, VIS_TAB | VIS_NL | VIS_CSTYLE);
 
-	return vis;
+	return (vis);
 }
 
 static void
@@ -143,7 +144,32 @@ print_all(void) {
 		print_proc(&procs[i]);
 
 	free(procs);
-	return 0;
+	return (0);
+}
+
+static void
+check_sysctl(void) {
+	int value;
+	size_t len = sizeof(value);
+	const char *name= NULL;
+
+#if defined(__FreeBSD__)
+	name = "security.bsd.unprivileged_proc_debug";
+#elif defined(__NetBSD__)
+	name = "security.curtain";
+#elif defined(__DragonFly__)
+	name = "security.ps_showallprocs";
+#endif
+
+	if (sysctlbyname(name, &value, &len, NULL, 0) == -1)
+		err(1, "sysctl %s", name);
+
+#if defined(__FreeBSD__) || defined(__DragonFly__)
+	if (!value)
+#elif defined(__NetBSD__)
+	if (value)
+#endif
+		warnx("%s sysctl is set to %d. Run this program as root", name, value);
 }
 
 int
@@ -152,6 +178,9 @@ main(int argc, char *argv[]) {
 		errx(1, "Usage: %s [-v]\n", argv[0]);
 	if (argc > 1 && !strcmp(argv[1], "-v"))
 		verbose = 1;
+
+	if (geteuid())
+		check_sysctl();
 
 	printf("PID\tPPID\tUID\tUser\tCommand\n");
 	exit(print_all() != 0);
