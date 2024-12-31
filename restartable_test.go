@@ -94,7 +94,7 @@ func TestGetService(t *testing.T) {
 // Test getCommand
 func TestGetCommand(t *testing.T) {
 	procFS := mockProcFS(1234, map[string]string{
-		"cmdline": "/bin/bash\x00--version\x00\x00",
+		"cmdline": "/bin/bash\x00--version\x00",
 	}, nil)
 
 	command, err := getCommand(procFS, true, "bash")
@@ -136,7 +136,7 @@ func TestParseStatusField(t *testing.T) {
 func TestGetProcessInfo(t *testing.T) {
 	procFS := mockProcFS(1234, map[string]string{
 		"cgroup":  "/proc/777/cgroup:0::/system.slice/sshd.service\n",
-		"cmdline": "/bin/bash\x00--version\x00\x00",
+		"cmdline": "/bin/bash\x00--version\x00",
 		"maps":    "00400000-00452000 r-xp 00000000 fd:00 12345 /bin/bash (deleted)\n",
 		"status":  "Name:\tbash\nPPid:\t1\nUid:\t1000\n",
 	}, nil)

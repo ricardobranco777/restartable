@@ -157,14 +157,8 @@ func getCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-
-	cmdline := []string{}
-	if bytes.HasSuffix(data, []byte("\x00")) {
-		cmdline = strings.Split(string(data), "\x00")
-		cmdline = cmdline[:len(cmdline)-1]
-	} else {
-		cmdline = append(cmdline, string(data))
-	}
+	data = bytes.TrimSuffix(data, []byte("\x00"))
+	cmdline := strings.Split(string(data), "\x00")
 
 	var command string
 	if fullPath {
@@ -177,15 +171,14 @@ func getCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) 
 		}
 		exe = strings.TrimSuffix(exe, " (deleted)")
 		if len(cmdline) > 0 && !strings.HasPrefix(cmdline[0], "/") && exe != "" && filepath.Base(cmdline[0]) == filepath.Base(exe) {
-			command = exe + " " + strings.Join(cmdline[1:], " ")
-		} else {
-			command = strings.Join(cmdline, " ")
+			cmdline[0] = exe
 		}
+		command = strings.Join(cmdline, " ")
 	} else {
 		command = statusName
 		// The command may be truncated to 15 chars in /proc/<pid>/status
 		// Also, kernel usermode helpers use "none"
-		if len(cmdline) > 0 && cmdline[0] != "" && (len(command) == 15 || command == "none") {
+		if (len(command) == 15 || command == "none") && len(cmdline) > 0 && cmdline[0] != "" {
 			command = cmdline[0]
 		}
 		if strings.HasPrefix(command, "/") {
@@ -194,7 +187,7 @@ func getCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) 
 			command = strings.Split(command, " ")[0]
 		}
 	}
-	return strings.TrimSpace(command), nil
+	return command, nil
 }
 
 // parseStatusField extracts a field value from the status file given a key
