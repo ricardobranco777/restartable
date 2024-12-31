@@ -22,11 +22,17 @@ import flag "github.com/spf13/pflag"
 
 const version string = "2.3.0"
 
-// ProcPidFS defines an interface for /proc/<pid> filesystem access
-type ProcPidFS interface {
+// ProcFS defines an interface for /proc/ filesystem access
+type ProcFS interface {
 	ReadFile(path string) ([]byte, error)
 	ReadLink(path string) (string, error)
 	Close() error
+}
+
+// ProcPidFS defines an interface for /proc/<pid> filesystem access
+type ProcPidFS interface {
+	ProcFS
+	PID() int
 }
 
 // RealProcPidFS implements ProcPidFS for real /proc/<pid> filesystem
@@ -89,6 +95,11 @@ func (p *RealProcPidFS) ReadLink(path string) (string, error) {
 			return string(data[:n]), nil
 		}
 	}
+}
+
+// PID returns the process ID
+func (p *RealProcPidFS) PID() int {
+	return p.pid
 }
 
 var (
@@ -210,6 +221,7 @@ func parseStatusField(data, key string) string {
 type ProcessInfo struct {
 	Command string
 	Deleted []string
+	Pid     int
 	Ppid    int
 	Uid     int
 	Service string
@@ -241,6 +253,7 @@ func getProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 	return &ProcessInfo{
 		Command: quoteString(command),
 		Deleted: deleted,
+		Pid:     fs.PID(),
 		Ppid:    ppid,
 		Uid:     uid,
 		Service: getService(fs, userService),
@@ -334,7 +347,7 @@ func runProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (Proc
 			continue
 		}
 		if opts.short < 3 {
-			fmt.Printf("%d\t%d\t%d\t%-20s\t%20s\t%s\n", pid, proc.Ppid, proc.Uid, getUser(proc.Uid), proc.Service, proc.Command)
+			fmt.Printf("%d\t%d\t%d\t%-20s\t%20s\t%s\n", proc.Pid, proc.Ppid, proc.Uid, getUser(proc.Uid), proc.Service, proc.Command)
 		} else if proc.Service != "-" {
 			services[proc.Service] = true
 		}
