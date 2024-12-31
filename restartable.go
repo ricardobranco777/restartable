@@ -101,7 +101,7 @@ func (p *RealProcPidFS) ReadLink(path string) (string, error) {
 type ProcessInfo struct {
 	Command string
 	Deleted []string
-	Ppid    string
+	Ppid    int
 	Uid     int
 	Service string
 }
@@ -233,7 +233,14 @@ func GetProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 	statusName := parseStatusField(status, "Name")
 	statusPpid := parseStatusField(status, "PPid")
 	statusUid := strings.Fields(parseStatusField(status, "Uid"))[0]
-	uid, _ := strconv.Atoi(statusUid)
+	ppid, err := strconv.Atoi(statusPpid)
+	if err != nil {
+		panic(err)
+	}
+	uid, err := strconv.Atoi(statusUid)
+	if err != nil {
+		panic(err)
+	}
 
 	command, err := GetCommand(fs, fullPath, statusName)
 	if err != nil {
@@ -243,7 +250,7 @@ func GetProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 	return &ProcessInfo{
 		Command: QuoteString(command),
 		Deleted: deleted,
-		Ppid:    statusPpid,
+		Ppid:    ppid,
 		Uid:     uid,
 		Service: GetService(fs, userService),
 	}, nil
@@ -338,7 +345,7 @@ func RunProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (Proc
 		}
 		close(channel[pid])
 		if opts.short < 3 {
-			fmt.Printf("%d\t%s\t%d\t%-20s\t%20s\t%s\n", pid, proc.Ppid, proc.Uid, GetUser(proc.Uid), proc.Service, proc.Command)
+			fmt.Printf("%d\t%d\t%d\t%-20s\t%20s\t%s\n", pid, proc.Ppid, proc.Uid, GetUser(proc.Uid), proc.Service, proc.Command)
 		} else if proc.Service != "-" {
 			services[proc.Service] = true
 		}
