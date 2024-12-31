@@ -97,8 +97,8 @@ var (
 	regexExecMap = regexp.MustCompile(`^[0-9a-f]+-[0-9a-f]+ r(w|-)x`)
 )
 
-// GetDeleted retrieves deleted file mappings for a process
-func GetDeleted(fs ProcPidFS) ([]string, error) {
+// getDeleted retrieves deleted file mappings for a process
+func getDeleted(fs ProcPidFS) ([]string, error) {
 	maps, err := fs.ReadFile("maps")
 	if err != nil {
 		if errors.Is(err, unix.EACCES) {
@@ -111,7 +111,7 @@ func GetDeleted(fs ProcPidFS) ([]string, error) {
 	for _, line := range strings.Split(string(maps), "\n") {
 		file := regexDeleted.FindString(line)
 		if file != "" && regexExecMap.MatchString(line) && !regexIgnored.MatchString(file) {
-			files = append(files, QuoteString(strings.TrimSuffix(file, " (deleted)")))
+			files = append(files, quoteString(strings.TrimSuffix(file, " (deleted)")))
 		}
 	}
 	sort.Strings(files)
@@ -119,8 +119,8 @@ func GetDeleted(fs ProcPidFS) ([]string, error) {
 	return files, nil
 }
 
-// GetService retrieves the service name
-func GetService(fs ProcPidFS, userService bool) string {
+// getService retrieves the service name
+func getService(fs ProcPidFS, userService bool) string {
 	data, err := fs.ReadFile("cgroup")
 	if err != nil {
 		return "-"
@@ -139,8 +139,8 @@ func GetService(fs ProcPidFS, userService bool) string {
 	return "-"
 }
 
-// GetCommand retrieves the command
-func GetCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) {
+// getCommand retrieves the command
+func getCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) {
 	data, err := fs.ReadFile("cmdline")
 	if err != nil {
 		return "", err
@@ -215,9 +215,9 @@ type ProcessInfo struct {
 	Service string
 }
 
-// GetProcessInfo gets process information
-func GetProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo, error) {
-	deleted, err := GetDeleted(fs)
+// getProcessInfo gets process information
+func getProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo, error) {
+	deleted, err := getDeleted(fs)
 	if err != nil {
 		return nil, err
 	} else if len(deleted) == 0 {
@@ -242,22 +242,22 @@ func GetProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 		panic(err)
 	}
 
-	command, err := GetCommand(fs, fullPath, statusName)
+	command, err := getCommand(fs, fullPath, statusName)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ProcessInfo{
-		Command: QuoteString(command),
+		Command: quoteString(command),
 		Deleted: deleted,
 		Ppid:    ppid,
 		Uid:     uid,
-		Service: GetService(fs, userService),
+		Service: getService(fs, userService),
 	}, nil
 }
 
 // Quote special characters
-func QuoteString(str string) string {
+func quoteString(str string) string {
 	if len(str) > 0 {
 		str = strconv.Quote(str)
 		return str[1 : len(str)-1]
@@ -266,7 +266,7 @@ func QuoteString(str string) string {
 }
 
 // Get username from UID
-func GetUser(uid int) string {
+func getUser(uid int) string {
 	if info, err := user.LookupId(strconv.Itoa(uid)); err != nil {
 		return "-"
 	} else {
@@ -303,7 +303,7 @@ type Opts struct {
 	version bool
 }
 
-func RunProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (ProcPidFS, error)) {
+func runProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (ProcPidFS, error)) {
 	pids, err := lister.ListProcesses()
 	if err != nil {
 		log.Fatal(err)
@@ -328,7 +328,7 @@ func RunProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (Proc
 					return
 				}
 				defer fs.Close()
-				info, err := GetProcessInfo(fs, opts.verbose, opts.user)
+				info, err := getProcessInfo(fs, opts.verbose, opts.user)
 				if err != nil {
 					log.Print(err)
 				}
@@ -345,7 +345,7 @@ func RunProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (Proc
 		}
 		close(channel[pid])
 		if opts.short < 3 {
-			fmt.Printf("%d\t%d\t%d\t%-20s\t%20s\t%s\n", pid, proc.Ppid, proc.Uid, GetUser(proc.Uid), proc.Service, proc.Command)
+			fmt.Printf("%d\t%d\t%d\t%-20s\t%20s\t%s\n", pid, proc.Ppid, proc.Uid, getUser(proc.Uid), proc.Service, proc.Command)
 		} else if proc.Service != "-" {
 			services[proc.Service] = true
 		}
@@ -395,7 +395,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "WARN: Run this program as root")
 	}
 
-	RunProcessMonitor(DefaultProcessLister{}, opts, func(pid int) (ProcPidFS, error) {
+	runProcessMonitor(DefaultProcessLister{}, opts, func(pid int) (ProcPidFS, error) {
 		return OpenProcPid(pid)
 	})
 }
