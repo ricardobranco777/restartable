@@ -37,6 +37,7 @@ type ProcPidFS interface {
 
 // RealProcPidFS implements ProcPidFS for real /proc/<pid> filesystem
 type RealProcPidFS struct {
+	ProcPidFS
 	dirFd int
 	pid   int
 }
@@ -193,7 +194,7 @@ func getCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) 
 			command = strings.Split(command, " ")[0]
 		}
 	}
-	return command, nil
+	return strings.TrimSpace(command), nil
 }
 
 // parseStatusField extracts a field value from the status file given a key

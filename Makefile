@@ -9,6 +9,7 @@ $(BIN): *.go
 test:
 	@go vet
 	@staticcheck
+	@go test ./... -v
 
 .PHONY: clean
 clean:
