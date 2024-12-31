@@ -39,9 +39,6 @@ var (
 	regexDeleted = regexp.MustCompile(`/.* \(deleted\)$`)
 	regexIgnored = regexp.MustCompile(`[^/]*/(dev|memfd:|run| )`)
 	regexExecMap = regexp.MustCompile(`^[0-9a-f]+-[0-9a-f]+ r(w|-)x`)
-	regexName    = regexp.MustCompile(`(?m)^Name:\t(.*)$`)
-	regexPpid    = regexp.MustCompile(`(?m)^PPid:\t(.*)$`)
-	regexRuid    = regexp.MustCompile(`(?m)^Uid:\t([0-9]+)\t`)
 )
 
 // OpenProc opens a /proc/<pid> directory and returns a ProcPidFS instance
@@ -210,19 +207,35 @@ func GetProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 	if err != nil {
 		return nil, err
 	}
-	status := string(data)
+	lines := strings.Split(string(data), "\n")
 
-	command, err := GetCommand(fs, fullPath, regexName.FindStringSubmatch(status)[1])
+	var statusName, statusPpid, statusUid string
+
+	// Iterate over each line and parse required fields
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Name:") {
+			statusName = strings.TrimSpace(strings.Split(line, ":")[1])
+		} else if strings.HasPrefix(line, "PPid:") {
+			statusPpid = strings.TrimSpace(strings.Split(line, ":")[1])
+		} else if strings.HasPrefix(line, "Uid:") {
+			uidParts := strings.Fields(strings.Split(line, ":")[1])
+			if len(uidParts) > 0 {
+				statusUid = uidParts[0]
+			}
+		}
+	}
+
+	command, err := GetCommand(fs, fullPath, statusName)
 	if err != nil {
 		return nil, err
 	}
 
-	uid, _ := strconv.Atoi(regexRuid.FindStringSubmatch(status)[1])
+	uid, _ := strconv.Atoi(statusUid)
 
 	return &ProcessInfo{
 		Command: QuoteString(command),
 		Deleted: deleted,
-		Ppid:    regexPpid.FindStringSubmatch(status)[1],
+		Ppid:    statusPpid,
 		Uid:     uid,
 		Service: GetService(fs, userService),
 	}, nil
