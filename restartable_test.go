@@ -93,17 +93,108 @@ func TestGetService(t *testing.T) {
 
 // Test getCommand
 func TestGetCommand(t *testing.T) {
-	procFS := mockProcFS(1234, map[string]string{
-		"cmdline": "/bin/bash\x00--version\x00",
-	}, nil)
-
-	command, err := getCommand(procFS, true, "bash")
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
+	tests := []struct {
+		name        string
+		fullPath    bool
+		statusName  string
+		files       map[string]string
+		symlinks    map[string]string
+		expectedCmd string
+		expectedErr bool
+	}{
+		{
+			name:        "Test Full Path with Non-Zombie Process",
+			fullPath:    true,
+			statusName:  "cmdline data",
+			files:       map[string]string{"cmdline": "cmd --flag=\"value\""},
+			symlinks:    map[string]string{"exe": "/path/to/executable"},
+			expectedCmd: "cmd --flag=\"value\"",
+			expectedErr: false,
+		},
+		{
+			name:        "Test Full Path with Zombie Process",
+			fullPath:    true,
+			statusName:  "cmdline data",
+			files:       map[string]string{"cmdline": "cmd --flag=\"value\""},
+			symlinks:    map[string]string{"exe": ""},
+			expectedCmd: "cmd --flag=\"value\"",
+			expectedErr: false,
+		},
+		{
+			name:        "Test Short Path (cmdline exists)",
+			fullPath:    false,
+			statusName:  "cmdline data",
+			files:       map[string]string{"cmdline": "cmdline"},
+			symlinks:    map[string]string{},
+			expectedCmd: "cmdline",
+			expectedErr: false,
+		},
+		{
+			name:        "Test Command Truncated in Status",
+			fullPath:    false,
+			statusName:  "cmdline data",
+			files:       map[string]string{"cmdline": "cmdline"},
+			symlinks:    map[string]string{},
+			expectedCmd: "cmdline",
+			expectedErr: false,
+		},
+		{
+			name:        "Test Command 'none' for Kernel Helper",
+			fullPath:    false,
+			statusName:  "none",
+			files:       map[string]string{"cmdline": "cmdline"},
+			symlinks:    map[string]string{},
+			expectedCmd: "cmdline",
+			expectedErr: false,
+		},
+		{
+			name:        "Test Empty Command",
+			fullPath:    false,
+			statusName:  "",
+			files:       map[string]string{"cmdline": ""},
+			symlinks:    map[string]string{},
+			expectedCmd: "-",
+			expectedErr: false,
+		},
+		{
+			name:        "Test Non-Zombie Process with Matching Executable Path",
+			fullPath:    true,
+			statusName:  "cmdline data",
+			files:       map[string]string{"cmdline": "cmd --flag=\"value\""},
+			symlinks:    map[string]string{"exe": "/path/to/executable"},
+			expectedCmd: "cmd --flag=\"value\"",
+			expectedErr: false,
+		},
+		{
+			name:        "Test Non-Zombie Process with Mismatched Executable Path",
+			fullPath:    true,
+			statusName:  "cmdline data",
+			files:       map[string]string{"cmdline": "cmd --flag=\"value\""},
+			symlinks:    map[string]string{"exe": "/different/path/to/executable"},
+			expectedCmd: "cmd --flag=\"value\"",
+			expectedErr: false,
+		},
 	}
-	expected := "/bin/bash --version"
-	if command != expected {
-		t.Errorf("Expected '%s', got '%s'", expected, command)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockFS := mockProcFS(1234, tt.files, tt.symlinks)
+			cmd, err := getCommand(mockFS, tt.fullPath, tt.statusName)
+
+			if tt.expectedErr {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			}
+
+			if cmd != tt.expectedCmd {
+				t.Errorf("expected command: %v, got: %v", tt.expectedCmd, cmd)
+			}
+		})
 	}
 }
 
