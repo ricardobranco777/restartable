@@ -194,6 +194,27 @@ func GetCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) 
 	return command, nil
 }
 
+// parseField extracts a field value from the status file given a key
+func parseStatusField(data, key string) string {
+	if key != "Name" {
+		key = "\n" + key
+	}
+	key = key + ":\t"
+
+	start := strings.Index(data, key)
+	if start == -1 {
+		return ""
+	}
+
+	start += len(key)
+	end := strings.IndexByte(data[start:], '\n')
+	if end == -1 {
+		end = len(data[start:])
+	}
+
+	return strings.TrimSpace(data[start : start+end])
+}
+
 // GetProcessInfo gets process information
 func GetProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo, error) {
 	deleted, err := GetDeleted(fs)
@@ -207,30 +228,17 @@ func GetProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 	if err != nil {
 		return nil, err
 	}
-	lines := strings.Split(string(data), "\n")
+	status := string(data)
 
-	var statusName, statusPpid, statusUid string
-
-	// Iterate over each line and parse required fields
-	for _, line := range lines {
-		if strings.HasPrefix(line, "Name:") {
-			statusName = strings.TrimSpace(strings.Split(line, ":")[1])
-		} else if strings.HasPrefix(line, "PPid:") {
-			statusPpid = strings.TrimSpace(strings.Split(line, ":")[1])
-		} else if strings.HasPrefix(line, "Uid:") {
-			uidParts := strings.Fields(strings.Split(line, ":")[1])
-			if len(uidParts) > 0 {
-				statusUid = uidParts[0]
-			}
-		}
-	}
+	statusName := parseStatusField(status, "Name")
+	statusPpid := parseStatusField(status, "PPid")
+	statusUid := strings.Fields(parseStatusField(status, "Uid"))[0]
+	uid, _ := strconv.Atoi(statusUid)
 
 	command, err := GetCommand(fs, fullPath, statusName)
 	if err != nil {
 		return nil, err
 	}
-
-	uid, _ := strconv.Atoi(statusUid)
 
 	return &ProcessInfo{
 		Command: QuoteString(command),
