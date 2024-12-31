@@ -316,10 +316,14 @@ func runProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (Proc
 		fmt.Printf("%s\t%s\t%s\t%-20s\t%20s\t%s\n", "PID", "PPID", "UID", "User", "Service", "Command")
 	}
 
-	channel := make(chan *ProcessInfo, len(pids))
-	go func() {
-		defer close(channel)
-		for _, pid := range pids {
+	channel := make(map[int]chan *ProcessInfo, len(pids))
+	for _, pid := range pids {
+		channel[pid] = make(chan *ProcessInfo, 1)
+	}
+
+	for _, pid := range pids {
+		go func(pid int) {
+			defer close(channel[pid])
 			fs, err := openProc(pid)
 			if err != nil {
 				if !errors.Is(err, unix.ENOENT) {
@@ -331,14 +335,17 @@ func runProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (Proc
 			info, err := getProcessInfo(fs, opts.verbose, opts.user)
 			if err != nil {
 				log.Print(err)
-			} else if info != nil {
-				channel <- info
 			}
-		}
-	}()
+			channel[pid] <- info
+		}(pid)
+	}
 
 	services := make(map[string]bool)
-	for proc := range channel {
+	for _, pid := range pids {
+		proc := <-channel[pid]
+		if proc == nil {
+			continue
+		}
 		if opts.short < 3 {
 			fmt.Printf("%d\t%d\t%d\t%-20s\t%20s\t%s\n", proc.Pid, proc.Ppid, proc.Uid, getUser(proc.Uid), proc.Service, proc.Command)
 		} else if proc.Service != "-" {
