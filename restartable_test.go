@@ -9,63 +9,6 @@ import (
 	"testing/fstest"
 )
 
-type MockProcPidFS struct {
-	fs  fs.FS
-	pid int
-}
-
-func (p *MockProcPidFS) ReadFile(path string) ([]byte, error) {
-	return fs.ReadFile(p.fs, path)
-}
-
-// Workaround for https://github.com/golang/go/issues/49580
-func (p *MockProcPidFS) ReadLink(path string) (string, error) {
-	file, err := p.fs.Open(path)
-	if err != nil {
-		return "", fmt.Errorf("failed to open path: %w", err)
-	}
-	defer file.Close()
-
-	stat, err := file.Stat()
-	if err != nil {
-		return "", fmt.Errorf("failed to stat path: %w", err)
-	}
-
-	if stat.Mode()&fs.ModeSymlink == 0 {
-		return "", fmt.Errorf("not a symlink")
-	}
-
-	if mapFile, ok := p.fs.(fstest.MapFS)[path]; ok {
-		return string(mapFile.Data), nil
-	}
-	return "", fmt.Errorf("symlink target not found")
-}
-
-func (p *MockProcPidFS) PID() int {
-	return p.pid
-}
-
-func (p *MockProcPidFS) Close() error {
-	return nil
-}
-
-func mockProcFS(pid int, files map[string]string, symlinks map[string]string) *MockProcPidFS {
-	mockFS := fstest.MapFS{}
-
-	for path, content := range files {
-		mockFS[path] = &fstest.MapFile{Data: []byte(content)}
-	}
-
-	for path, target := range symlinks {
-		mockFS[path] = &fstest.MapFile{
-			Mode: fs.ModeSymlink,
-			Data: []byte(target),
-		}
-	}
-
-	return &MockProcPidFS{fs: mockFS, pid: pid}
-}
-
 // Test using real /proc files
 func TestRealProcPid(t *testing.T) {
 	pid := os.Getpid()
@@ -129,81 +72,49 @@ func TestRealProcPid(t *testing.T) {
 // Test getDeleted
 func TestGetDeleted(t *testing.T) {
 	tests := []struct {
-		name        string
-		files       map[string]string
-		expectedCmd []string
-		expectedErr bool
+		name     string
+		maps     string
+		expected []string
 	}{
 		{
-			name: "Test with deleted file",
-			files: map[string]string{
-				"maps": "00400000-0040b000 r-xp 00000000 08:01 1234 /path/to/executable (deleted)\n",
-			},
-			expectedCmd: []string{"/path/to/executable"},
-			expectedErr: false,
+			name:     "Test with deleted file",
+			maps:     "00400000-0040b000 r-xp 00000000 08:01 1234 /path/to/executable (deleted)\n",
+			expected: []string{"/path/to/executable"},
 		},
 		{
-			name: "Test with no deleted files",
-			files: map[string]string{
-				"maps": "00400000-0040b000 r-xp 00000000 08:01 1234 /path/to/executable\n",
-			},
-			expectedCmd: []string{},
-			expectedErr: false,
+			name:     "Test with no deleted files",
+			maps:     "00400000-0040b000 r-xp 00000000 08:01 1234 /path/to/executable\n",
+			expected: []string{},
 		},
 		{
-			name: "Test with permission error",
-			files: map[string]string{
-				"maps": "",
-			},
-			expectedCmd: []string{},
-			expectedErr: false, // EACCES is handled, so no error should propagate
+			name:     "Test with permission error",
+			maps:     "",
+			expected: []string{},
 		},
 		{
-			name:        "Test with missing maps file",
-			files:       map[string]string{},
-			expectedCmd: []string{},
-			expectedErr: true,
-		},
-		{
-			name: "Test with invalid mapping",
-			files: map[string]string{
-				"maps": "00400000-0040b000 r-xp 00000000 08:01 1234 /path/to/someotherfile (deleted)\n",
-			},
-			expectedCmd: []string{"/path/to/someotherfile"},
-			expectedErr: false,
+			name:     "Test with invalid mapping",
+			maps:     "00400000-0040b000 r-xp 00000000 08:01 1234 /path/to/someotherfile (deleted)\n",
+			expected: []string{"/path/to/someotherfile"},
 		},
 		{
 			name: "Test with multiple deleted files",
-			files: map[string]string{
-				"maps": "00400000-0040b000 r-xp 00000000 08:01 1234 /path/to/executable1 (deleted)\n" +
-					"00410000-0041b000 r-xp 00000000 08:01 1234 /path/to/executable2 (deleted)\n",
-			},
-			expectedCmd: []string{"/path/to/executable1", "/path/to/executable2"},
-			expectedErr: false,
+			maps: "00400000-0040b000 r-xp 00000000 08:01 1234 /path/to/executable1 (deleted)\n" +
+				"00410000-0041b000 r-xp 00000000 08:01 1234 /path/to/executable2 (deleted)\n",
+			expected: []string{"/path/to/executable1", "/path/to/executable2"},
 		},
 		{
-			name: "Test with ignored files",
-			files: map[string]string{
-				"maps": "00400000-0040b000 r-xp 00000000 08:01 1234 /memfd:shm (deleted)\n",
-			},
-			expectedCmd: []string{},
-			expectedErr: false,
+			name:     "Test with ignored files",
+			maps:     "00400000-0040b000 r-xp 00000000 08:01 1234 /memfd:shm (deleted)\n",
+			expected: []string{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockFS := mockProcFS(1234, tt.files, nil)
-			files, err := getDeleted(mockFS)
+			files := getDeleted(tt.maps)
 
-			if tt.expectedErr && err == nil {
-				t.Errorf("expected error but got none")
-			} else if !tt.expectedErr && err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-
-			if !slices.Equal(files, tt.expectedCmd) {
-				t.Errorf("expected files: %v, got: %v", tt.expectedCmd, files)
+			if !slices.Equal(files, tt.expected) {
+				t.Errorf("expected files: %v, got: %v", tt.expected, files)
 			}
 		})
 	}
@@ -214,64 +125,47 @@ func TestGetService(t *testing.T) {
 	tests := []struct {
 		name        string
 		userService bool
-		files       map[string]string
-		expectedCmd string
-		expectedErr bool
+		cgroup      string
+		expected    string
 	}{
 		{
 			name:        "Test Systemd User Slice",
 			userService: true,
-			files:       map[string]string{"cgroup": "/user.slice/my.service"},
-			expectedCmd: "my",
-			expectedErr: false,
+			cgroup:      "/user.slice/my.service",
+			expected:    "my",
 		},
 		{
 			name:        "Test Systemd System Slice",
 			userService: false,
-			files:       map[string]string{"cgroup": "/system.slice/my.service"},
-			expectedCmd: "my",
-			expectedErr: false,
+			cgroup:      "/system.slice/my.service",
+			expected:    "my",
 		},
 		{
 			name:        "Test OpenRC Service",
 			userService: false,
-			files:       map[string]string{"cgroup": ":name=openrc:/myservice"},
-			expectedCmd: "myservice",
-			expectedErr: false,
-		},
-		{
-			name:        "Test Missing Cgroup File",
-			userService: true,
-			files:       map[string]string{},
-			expectedCmd: "-",
-			expectedErr: true,
+			cgroup:      ":name=openrc:/myservice",
+			expected:    "myservice",
 		},
 		{
 			name:        "Test Invalid Cgroup Format",
 			userService: false,
-			files:       map[string]string{"cgroup": "/invalid/format"},
-			expectedCmd: "-",
-			expectedErr: false,
+			cgroup:      "/invalid/format",
+			expected:    "-",
 		},
 		{
 			name:        "Test No Service in Cgroup",
 			userService: false,
-			files:       map[string]string{"cgroup": "/system.slice/"},
-			expectedCmd: "-",
-			expectedErr: false,
+			cgroup:      "/system.slice/",
+			expected:    "-",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockFS := mockProcFS(1234, tt.files, nil)
-			cmd := getService(mockFS, tt.userService)
+			cmd := getService(tt.cgroup, tt.userService)
 
-			if tt.expectedErr && cmd != "-" {
-				t.Errorf("expected error or '-' but got: %v", cmd)
-			}
-			if !tt.expectedErr && cmd != tt.expectedCmd {
-				t.Errorf("expected command: %v, got: %v", tt.expectedCmd, cmd)
+			if cmd != tt.expected {
+				t.Errorf("expected command: %v, got: %v", tt.expected, cmd)
 			}
 		})
 	}
@@ -280,105 +174,85 @@ func TestGetService(t *testing.T) {
 // Test getCommand
 func TestGetCommand(t *testing.T) {
 	tests := []struct {
-		name        string
-		fullPath    bool
-		statusName  string
-		files       map[string]string
-		symlinks    map[string]string
-		expectedCmd string
-		expectedErr bool
+		name       string
+		fullPath   bool
+		statusName string
+		cmdline    string
+		exe        string
+		expected   string
 	}{
 		{
-			name:        "Test Full Path with Non-Zombie Process",
-			fullPath:    true,
-			statusName:  "cmdline data",
-			files:       map[string]string{"cmdline": "cmd --flag=\"value\""},
-			symlinks:    map[string]string{"exe": "/path/to/executable"},
-			expectedCmd: "cmd --flag=\"value\"",
-			expectedErr: false,
+			name:       "Test Full Path with Non-Zombie Process",
+			fullPath:   true,
+			statusName: "cmdline data",
+			cmdline:    "cmd --flag=\"value\"",
+			exe:        "/path/to/executable",
+			expected:   "cmd --flag=\"value\"",
 		},
 		{
-			name:        "Test Full Path with Zombie Process",
-			fullPath:    true,
-			statusName:  "cmdline data",
-			files:       map[string]string{"cmdline": "cmd --flag=\"value\""},
-			symlinks:    map[string]string{"exe": ""},
-			expectedCmd: "cmd --flag=\"value\"",
-			expectedErr: false,
+			name:       "Test Full Path with Zombie Process",
+			fullPath:   true,
+			statusName: "cmdline data",
+			cmdline:    "cmd --flag=\"value\"",
+			exe:        "",
+			expected:   "cmd --flag=\"value\"",
 		},
 		{
-			name:        "Test Short Path (cmdline exists)",
-			fullPath:    false,
-			statusName:  "cmdline data",
-			files:       map[string]string{"cmdline": "cmdline"},
-			symlinks:    map[string]string{},
-			expectedCmd: "cmdline",
-			expectedErr: false,
+			name:       "Test Short Path (cmdline exists)",
+			fullPath:   false,
+			statusName: "cmdline data",
+			cmdline:    "cmdline",
+			exe:        "",
+			expected:   "cmdline",
 		},
 		{
-			name:        "Test Command Truncated in Status",
-			fullPath:    false,
-			statusName:  "cmdline data",
-			files:       map[string]string{"cmdline": "cmdline"},
-			symlinks:    map[string]string{},
-			expectedCmd: "cmdline",
-			expectedErr: false,
+			name:       "Test Command Truncated in Status",
+			fullPath:   false,
+			statusName: "cmdline data",
+			cmdline:    "cmdline",
+			exe:        "",
+			expected:   "cmdline",
 		},
 		{
-			name:        "Test Command 'none' for Kernel Helper",
-			fullPath:    false,
-			statusName:  "none",
-			files:       map[string]string{"cmdline": "cmdline"},
-			symlinks:    map[string]string{},
-			expectedCmd: "cmdline",
-			expectedErr: false,
+			name:       "Test Command 'none' for Kernel Helper",
+			fullPath:   false,
+			statusName: "none",
+			cmdline:    "cmdline",
+			exe:        "",
+			expected:   "cmdline",
 		},
 		{
-			name:        "Test Empty Command",
-			fullPath:    false,
-			statusName:  "",
-			files:       map[string]string{"cmdline": ""},
-			symlinks:    map[string]string{},
-			expectedCmd: "-",
-			expectedErr: false,
+			name:       "Test Empty Command",
+			fullPath:   false,
+			statusName: "",
+			cmdline:    "",
+			exe:        "",
+			expected:   "-",
 		},
 		{
-			name:        "Test Non-Zombie Process with Matching Executable Path",
-			fullPath:    true,
-			statusName:  "cmdline data",
-			files:       map[string]string{"cmdline": "cmd --flag=\"value\""},
-			symlinks:    map[string]string{"exe": "/path/to/executable"},
-			expectedCmd: "cmd --flag=\"value\"",
-			expectedErr: false,
+			name:       "Test Non-Zombie Process with Matching Executable Path",
+			fullPath:   true,
+			statusName: "cmdline data",
+			cmdline:    "cmd --flag=\"value\"",
+			exe:        "/path/to/executable",
+			expected:   "cmd --flag=\"value\"",
 		},
 		{
-			name:        "Test Non-Zombie Process with Mismatched Executable Path",
-			fullPath:    true,
-			statusName:  "cmdline data",
-			files:       map[string]string{"cmdline": "cmd --flag=\"value\""},
-			symlinks:    map[string]string{"exe": "/different/path/to/executable"},
-			expectedCmd: "cmd --flag=\"value\"",
-			expectedErr: false,
+			name:       "Test Non-Zombie Process with Mismatched Executable Path",
+			fullPath:   true,
+			statusName: "cmdline data",
+			cmdline:    "cmd --flag=\"value\"",
+			exe:        "/different/path/to/executable",
+			expected:   "cmd --flag=\"value\"",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockFS := mockProcFS(1234, tt.files, tt.symlinks)
-			cmd, err := getCommand(mockFS, tt.fullPath, tt.statusName)
+			cmd := getCommand([]byte(tt.cmdline), tt.exe, tt.fullPath, tt.statusName)
 
-			if tt.expectedErr {
-				if err == nil {
-					t.Errorf("expected error, got nil")
-				}
-			} else {
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
-			}
-
-			if cmd != tt.expectedCmd {
-				t.Errorf("expected command: %v, got: %v", tt.expectedCmd, cmd)
+			if cmd != tt.expected {
+				t.Errorf("expected command: %v, got: %v", tt.expected, cmd)
 			}
 		})
 	}
@@ -407,6 +281,63 @@ func TestParseStatusField(t *testing.T) {
 			}
 		})
 	}
+}
+
+type MockProcPidFS struct {
+	fs  fs.FS
+	pid int
+}
+
+func (p *MockProcPidFS) ReadFile(path string) ([]byte, error) {
+	return fs.ReadFile(p.fs, path)
+}
+
+// Workaround for https://github.com/golang/go/issues/49580
+func (p *MockProcPidFS) ReadLink(path string) (string, error) {
+	file, err := p.fs.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to open path: %w", err)
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return "", fmt.Errorf("failed to stat path: %w", err)
+	}
+
+	if stat.Mode()&fs.ModeSymlink == 0 {
+		return "", fmt.Errorf("not a symlink")
+	}
+
+	if mapFile, ok := p.fs.(fstest.MapFS)[path]; ok {
+		return string(mapFile.Data), nil
+	}
+	return "", fmt.Errorf("symlink target not found")
+}
+
+func (p *MockProcPidFS) PID() int {
+	return p.pid
+}
+
+func (p *MockProcPidFS) Close() error {
+	return nil
+}
+
+func mockProcFS(pid int, files map[string]string, symlinks map[string]string) *MockProcPidFS {
+	mockFS := fstest.MapFS{}
+
+	for path, content := range files {
+		mockFS[path] = &fstest.MapFile{Data: []byte(content)}
+	}
+
+	for path, target := range symlinks {
+		mockFS[path] = &fstest.MapFile{
+			Mode: fs.ModeSymlink,
+			Data: []byte(target),
+		}
+	}
+
+	return &MockProcPidFS{fs: mockFS, pid: pid}
 }
 
 // Test getProcessInfo

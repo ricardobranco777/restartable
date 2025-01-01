@@ -110,17 +110,9 @@ var (
 )
 
 // getDeleted retrieves deleted file mappings for a process
-func getDeleted(fs ProcPidFS) ([]string, error) {
-	maps, err := fs.ReadFile("maps")
-	if err != nil {
-		if errors.Is(err, unix.EACCES) {
-			err = nil
-		}
-		return nil, err
-	}
-
+func getDeleted(maps string) []string {
 	var files []string
-	for _, line := range strings.Split(string(maps), "\n") {
+	for _, line := range strings.Split(maps, "\n") {
 		file := regexDeleted.FindString(line)
 		if file != "" && regexExecMap.MatchString(line) && !regexIgnored.MatchString(file) {
 			files = append(files, quoteString(strings.TrimSuffix(file, " (deleted)")))
@@ -128,16 +120,12 @@ func getDeleted(fs ProcPidFS) ([]string, error) {
 	}
 	sort.Strings(files)
 
-	return files, nil
+	return files
 }
 
 // getService retrieves the service name
-func getService(fs ProcPidFS, userService bool) string {
-	data, err := fs.ReadFile("cgroup")
-	if err != nil {
-		return "-"
-	}
-	cgroup := strings.TrimSpace(string(data))
+func getService(cgroup string, userService bool) string {
+	cgroup = strings.TrimSpace(cgroup)
 
 	if strings.HasSuffix(cgroup, ".service") {
 		// Systemd
@@ -152,11 +140,7 @@ func getService(fs ProcPidFS, userService bool) string {
 }
 
 // getCommand retrieves the command
-func getCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) {
-	data, err := fs.ReadFile("cmdline")
-	if err != nil {
-		return "", err
-	}
+func getCommand(data []byte, exe string, fullPath bool, statusName string) string {
 	data = bytes.TrimSuffix(data, []byte("\x00"))
 	cmdline := strings.Split(string(data), "\x00")
 
@@ -165,10 +149,6 @@ func getCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) 
 		// Use full path
 
 		// cmdline is empty if zombie, but zombies have void maps
-		exe, err := fs.ReadLink("exe")
-		if err != nil {
-			exe = ""
-		}
 		exe = strings.TrimSuffix(exe, " (deleted)")
 		if exe != "" && !strings.HasPrefix(cmdline[0], "/") && filepath.Base(cmdline[0]) == filepath.Base(exe) {
 			cmdline[0] = exe
@@ -191,7 +171,7 @@ func getCommand(fs ProcPidFS, fullPath bool, statusName string) (string, error) 
 	if command == "" {
 		command = "-"
 	}
-	return command, nil
+	return command
 }
 
 // parseStatusField extracts a field value from the status file given a key
@@ -227,10 +207,15 @@ type ProcessInfo struct {
 
 // getProcessInfo gets process information
 func getProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo, error) {
-	deleted, err := getDeleted(fs)
+	maps, err := fs.ReadFile("maps")
 	if err != nil {
+		if errors.Is(err, unix.EACCES) {
+			err = nil
+		}
 		return nil, err
-	} else if len(deleted) == 0 {
+	}
+	deleted := getDeleted(string(maps))
+	if len(deleted) == 0 {
 		return nil, nil
 	}
 
@@ -243,10 +228,21 @@ func getProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 	ppid, _ := strconv.Atoi(parseStatusField(status, "PPid"))
 	uid, _ := strconv.Atoi(strings.Fields(parseStatusField(status, "Uid"))[0])
 
-	command, err := getCommand(fs, fullPath, parseStatusField(status, "Name"))
+	cmdline, err := fs.ReadFile("cmdline")
 	if err != nil {
 		return nil, err
 	}
+	exe, err := fs.ReadLink("exe")
+	if err != nil {
+		exe = ""
+	}
+	command := getCommand(cmdline, exe, fullPath, parseStatusField(status, "Name"))
+
+	cgroup, err := fs.ReadFile("cgroup")
+	if err != nil {
+		cgroup = []byte("")
+	}
+	service := getService(string(cgroup), userService)
 
 	return &ProcessInfo{
 		Command: quoteString(command),
@@ -254,7 +250,7 @@ func getProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 		Pid:     fs.PID(),
 		Ppid:    ppid,
 		Uid:     uid,
-		Service: getService(fs, userService),
+		Service: service,
 	}, nil
 }
 
