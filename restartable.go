@@ -192,7 +192,7 @@ func parseStatusField(data, key string) string {
 		end = len(data[start:])
 	}
 
-	return strings.TrimSpace(data[start : start+end])
+	return data[start : start+end]
 }
 
 // ProcessInfo holds process information
