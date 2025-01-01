@@ -107,18 +107,18 @@ func (p *RealProcPidFS) PID() int {
 }
 
 var (
-	regexDeleted = regexp.MustCompile(`/.* \(deleted\)$`)
 	regexIgnored = regexp.MustCompile(`^/(dev|memfd:|run| )`)
-	regexExecMap = regexp.MustCompile(`^[0-9a-f]+-[0-9a-f]+ r(w|-)x`)
 )
 
 // getDeleted retrieves deleted file mappings for a process
 func getDeleted(maps string) []string {
 	var files []string
 	for _, line := range strings.Split(maps, "\n") {
-		file := regexDeleted.FindString(line)
-		if file != "" && regexExecMap.MatchString(line) && !regexIgnored.MatchString(file) {
-			files = append(files, quoteString(strings.TrimSuffix(file, " (deleted)")))
+		if strings.HasSuffix(line, " (deleted)") {
+			file := line[strings.Index(line, "/"):]
+			if line[strings.Index(line, " ")+3] == 'x' && !regexIgnored.MatchString(file) {
+				files = append(files, quoteString(strings.TrimSuffix(file, " (deleted)")))
+			}
 		}
 	}
 	sort.Strings(files)
