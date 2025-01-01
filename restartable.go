@@ -43,8 +43,11 @@ type RealProcPidFS struct {
 }
 
 // OpenProc opens a /proc/<pid> directory and returns a ProcPidFS instance
-func OpenProcPid(pid int) (*RealProcPidFS, error) {
-	path := filepath.Join("/proc", strconv.Itoa(pid))
+func OpenProcPid(procDir string, pid int) (*RealProcPidFS, error) {
+	if procDir == "" {
+		procDir = "/proc"
+	}
+	path := filepath.Join(procDir, strconv.Itoa(pid))
 	dirFd, err := unix.Open(path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_PATH, 0)
 	if err != nil {
 		return nil, &os.PathError{Op: "open", Path: fmt.Sprintf("/proc/%d", pid), Err: err}
@@ -392,6 +395,6 @@ func main() {
 	}
 
 	runProcessMonitor(DefaultProcessLister{}, opts, func(pid int) (ProcPidFS, error) {
-		return OpenProcPid(pid)
+		return OpenProcPid("/proc", pid)
 	})
 }

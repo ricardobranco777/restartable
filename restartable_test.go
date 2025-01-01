@@ -13,7 +13,7 @@ import (
 func TestRealProcPid(t *testing.T) {
 	pid := os.Getpid()
 
-	fs, err := OpenProcPid(pid)
+	fs, err := OpenProcPid("/proc", pid)
 	if err != nil {
 		t.Fatalf("failed to open /proc/%d: %v", pid, err)
 	}
