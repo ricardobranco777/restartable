@@ -261,12 +261,29 @@ check_sysctl(void) {
 		warnx("%s sysctl is set to %d. Run this program as root", name, value);
 }
 
+static void
+usage(void)
+{
+	fprintf(stderr, "Usage: %s [-v]\n", getprogname());
+	exit(1);
+}
+
 int
 main(int argc, char *argv[]) {
-	if (argc > 2)
-		errx(1, "Usage: %s [-v]\n", getprogname());
-	if (argc > 1 && !strcmp(argv[1], "-v"))
-		verbose = 1;
+	int ch;
+
+	while ((ch = getopt(argc, argv, "v")) != -1) {
+		switch (ch) {
+		case 'v':
+			verbose = 1;
+			break;
+		default:
+			usage();
+		}
+	}
+	argc -= optind;
+	if (argc != 0)
+		usage();
 
 	if (geteuid())
 		check_sysctl();
