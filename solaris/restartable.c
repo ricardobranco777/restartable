@@ -41,7 +41,7 @@ parse_psinfo(int pid, int procFd) {
 			printf("\t%s\n", psinfo.pr_psargs);
 	}
 
-	(void) close(fd);
+	(void)close(fd);
 }
 
 /*
@@ -56,7 +56,7 @@ is_libc_so(int pid, uintptr_t addr) {
 	ssize_t len;
 	int gcode;
 
-	(void) snprintf(pidstr, sizeof(pidstr), "%d", pid);
+	(void)snprintf(pidstr, sizeof(pidstr), "%d", pid);
 
 	if ((Pr = proc_arg_grab(pidstr, PR_ARG_PIDS, PGRAB_RDONLY, &gcode)) == NULL) {
 		warnx("%s: %s", pidstr, Pgrab_error(gcode));
@@ -80,7 +80,7 @@ print_proc(int pid) {
 	int procFd, mapFd;
 	prmap_t entry;
 
-	(void) snprintf(procPid, sizeof(procPid), "/proc/%d", pid);
+	(void)snprintf(procPid, sizeof(procPid), "/proc/%d", pid);
 	if ((procFd = open(procPid, O_RDONLY | O_DIRECTORY)) == -1)
 		return;
 
@@ -101,7 +101,7 @@ print_proc(int pid) {
 		if (entry.pr_mflags & MA_WRITE)
 			continue;
 
-		(void) snprintf(linkPath, sizeof(linkPath), "path/%s", entry.pr_mapname);
+		(void)snprintf(linkPath, sizeof(linkPath), "path/%s", entry.pr_mapname);
 		if ((readlinkat(procFd, linkPath, link, sizeof(link)) == -1 &&
 		    !is_libc_so(pid, entry.pr_vaddr)) ||
 		    !strncmp(link, "/proc/", sizeof("/proc"))) {
@@ -110,8 +110,8 @@ print_proc(int pid) {
 		}
 	}
 
-	(void) close(mapFd);
-	(void) close(procFd);
+	(void)close(mapFd);
+	(void)close(procFd);
 }
 
 static void
@@ -140,7 +140,7 @@ print_all(void) {
 		pids[nproc] = atoi(entry->d_name);
 	}
 
-	(void) closedir(dir);
+	(void)closedir(dir);
 
 	qsort(pids, ++nproc, sizeof(int), compare_pids);
 
@@ -153,7 +153,7 @@ print_all(void) {
 int
 main(int argc, char *argv[]) {
 	if (argc > 2)
-		errx(1, "Usage: %s [-v]\n", argv[0]);
+		errx(1, "Usage: %s [-v]\n", getprogname());
 	if (argc > 1 && !strcmp(argv[1], "-v"))
 		verbose = 1;
 
