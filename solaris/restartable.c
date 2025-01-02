@@ -22,26 +22,21 @@ compare_pids(const void *a, const void *b) {
 }
 
 static void
-parse_psinfo(int pid, int procFd) {
+parse_psinfo(int pid) {
 	struct passwd *pwd;
 	char *user = "-";
 	psinfo_t psinfo;
-	int fd;
 
-	if ((fd = openat(procFd, "psinfo", O_RDONLY)) == -1) {
+	if (proc_get_psinfo(pid, &psinfo) == -1) {
 		warn("%d", pid);
 		return;
 	}
 
-	if (read(fd, &psinfo, sizeof(psinfo_t)) == sizeof(psinfo_t)) {
-		if ((pwd = getpwuid(psinfo.pr_uid)) != NULL)
-			user = pwd->pw_name;
-		printf("%d\t%d\t%d\t%s\t%s\n", psinfo.pr_pid, psinfo.pr_ppid, psinfo.pr_uid, user, psinfo.pr_fname);
-		if (verbose)
-			printf("\t%s\n", psinfo.pr_psargs);
-	}
-
-	(void)close(fd);
+	if ((pwd = getpwuid(psinfo.pr_uid)) != NULL)
+		user = pwd->pw_name;
+	printf("%d\t%d\t%d\t%s\t%s\n", psinfo.pr_pid, psinfo.pr_ppid, psinfo.pr_uid, user, psinfo.pr_fname);
+	if (verbose)
+		printf("\t%s\n", psinfo.pr_psargs);
 }
 
 /*
@@ -105,7 +100,7 @@ print_proc(int pid) {
 		if ((readlinkat(procFd, linkPath, link, sizeof(link)) == -1 &&
 		    !is_libc_so(pid, entry.pr_vaddr)) ||
 		    !strncmp(link, "/proc/", sizeof("/proc"))) {
-			parse_psinfo(pid, procFd);
+			parse_psinfo(pid);
 			break;
 		}
 	}
