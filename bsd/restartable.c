@@ -175,7 +175,7 @@ check_sysctl(void) {
 int
 main(int argc, char *argv[]) {
 	if (argc > 2)
-		errx(1, "Usage: %s [-v]\n", argv[0]);
+		errx(1, "Usage: %s [-v]\n", getprogname());
 	if (argc > 1 && !strcmp(argv[1], "-v"))
 		verbose = 1;
 
