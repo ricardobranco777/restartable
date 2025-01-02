@@ -61,11 +61,12 @@ Be careful because depending on the service you may lose connection or get kicke
 
   - [needrestart](https://github.com/liske/needrestart): Plugin used by Debian/Ubuntu systems
   - [checkrestart](https://github.com/Freaky/checkrestart): FreeBSD port
+  - [checkrestart](https://github.com/semarie/checkrestart): OpenBSD port
 
-## FreeBSD / DragonflyBSD / NetBSD version
+## FreeBSD / DragonflyBSD / NetBSD / OpenBSD version
 
 [bsd](bsd)
 
-## Solaris version
+## Illumos version
 
 [solaris](solaris)

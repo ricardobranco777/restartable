@@ -83,7 +83,7 @@ kinfo_getargv(pid_t pid)
 	mib[1] = KERN_PROC;
 	mib[2] = KERN_PROC_ARGS;
 	mib[3] = pid;
-#elif defined(__NetBSD__)
+#elif defined(__NetBSD__) || defined(__OpenBSD__)
 	mib[1] = KERN_PROC_ARGS;
 	mib[2] = pid;
 	mib[3] = KERN_PROC_ARGV;
@@ -98,7 +98,7 @@ kinfo_getargv(pid_t pid)
 	if (argv == NULL)
 		goto bad;
 
-#if !defined(__FreeBSD__)
+#if !defined(__FreeBSD__) && !defined(__OpenBSD__)
 	if (buf[0] != '/') {
 		argv[0] = kinfo_getpathname(pid);
 		if (argv[0] != NULL) {

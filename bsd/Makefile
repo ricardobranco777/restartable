@@ -3,11 +3,20 @@ OPSYS:sh = uname
 PROG= restartable
 WARNS= 3
 CFLAGS+= -O2
-.if ${OPSYS} != "DragonFly"
+.if ${OPSYS} == "OpenBSD"
+CFLAGS+= -Wall -Wmissing-prototypes -Wno-uninitialized -Wstrict-prototypes
+LDADD+= -lkvm
+DPADD+= ${LIBKVM}
+.else
 LDFLAGS= -lutil
 .endif
-SRCS= restartable.c kinfo_getargv.c util.c
+.if ${OPSYS} != "DragonFly"
+.endif
+SRCS= restartable.c
 HDRS= extern.h
+.if ${OPSYS} != "OpenBSD"
+SRCS+= kinfo_getargv.c util.c
+.endif
 
 BINDIR= /usr/local/bin
 

@@ -35,6 +35,10 @@
 #include <util.h>
 #elif defined(__DragonFly__)
 #include <sys/kinfo.h>
+#elif defined(__OpenBSD__)
+#include <sys/param.h>
+#include <sys/vnode.h>
+#include <kvm.h>
 #endif
 #include <sys/sysctl.h>
 
@@ -48,7 +52,7 @@
 #include <limits.h>
 #include <vis.h>
 
-#if defined(__NetBSD__)
+#if defined(__NetBSD__) || defined(__OpenBSD__)
 #define ki_comm		p_comm
 #define ki_login	p_login
 #define ki_pid		p_pid
@@ -81,12 +85,21 @@ safe_arg(const char *arg) {
 }
 
 static void
+#ifdef __OpenBSD__
+print_argv(kvm_t *kd, struct kinfo_proc *kp) {
+	char **argv = kvm_getargv(kd, kp, 0);
+#else
 print_argv(pid_t pid) {
 	char **argv = kinfo_getargv(pid);
 	char **argvp = argv;
+#endif
 
 	if (argv == NULL) {
-		warn("%d: kinfo_getargv", pid);
+#ifdef __OpenBSD__
+		warn("kvm_getargv(): %d: %s", kp->p_pid, kvm_geterr(kd));
+#else
+		warn("kinfo_getargv(): %d", pid);
+#endif
 		return;
 	}
 	printf("\t");
@@ -95,11 +108,34 @@ print_argv(pid_t pid) {
 	} while (*++argv);
 	printf("\n");
 
+#ifndef __OpenBSD__
 	free_argv(argvp);
+#endif
+}
+
+#ifdef __OpenBSD__
+static int
+kinfo_file_compare(const void *a, const void *b)
+{
+
+	return ((const struct kinfo_file *)a)->p_pid -
+	    ((const struct kinfo_file *)b)->p_pid;
 }
 
 static void
+kinfo_file_sort(struct kinfo_file *kifp, int count)
+{
+
+	qsort(kifp, count, sizeof(*kifp), kinfo_file_compare);
+}
+#endif
+
+static void
+#ifdef __OpenBSD__
+print_proc(kvm_t *kd, struct kinfo_proc *kp) {
+#else
 print_proc(const struct kinfo_proc *kp) {
+#endif
 #if defined(__FreeBSD__) || defined(__DragonFly__)
 	int i, count;
 #elif defined(__NetBSD__)
@@ -107,6 +143,7 @@ print_proc(const struct kinfo_proc *kp) {
 	size_t count;
 #endif
 
+#ifndef __OpenBSD__
 	if (kp->ki_pid == 0)
 		return;
 
@@ -129,10 +166,52 @@ print_proc(const struct kinfo_proc *kp) {
 		}
 
 	free(vmmap);
+
+#else	/* !__OpenBSD__ */
+	printf("%d\t%d\t%d\t%s\t%s\n", kp->ki_pid, kp->ki_ppid,
+	    kp->ki_ruid, kp->ki_login, safe_arg(kp->ki_comm));
+	if (verbose)
+		print_argv(kd, kp);
+#endif
 }
 
 static int
 print_all(void) {
+#ifdef __OpenBSD__
+	char errstr[_POSIX2_LINE_MAX];
+	struct kinfo_file *files;
+	kvm_t *kd;
+	int count;
+
+	kd = kvm_openfiles(NULL, NULL, NULL, KVM_NO_FILES, errstr);
+	if (kd == NULL)
+		errx(1, "kvm_openfiles(): %s", errstr);
+
+	files = kvm_getfiles(kd, KERN_FILE_BYPID, -1, sizeof(*files), &count);
+	if (files == NULL)
+		errx(1, "kvm_getfiles(): %s", kvm_geterr(kd));
+
+	kinfo_file_sort(files, count);
+
+	for (int i = 0; i < count; i++) {
+		struct kinfo_file *kf = &files[i];
+		struct kinfo_proc *kp;
+		int rc;
+
+		if (kf->v_flag != VTEXT || kf->va_nlink != 0)
+			continue;
+
+		kp = kvm_getprocs(kd, KERN_PROC_PID, kf->p_pid, sizeof(struct kinfo_proc), &rc);
+		if (kp == NULL) {
+			warn("kvm_getprocs(): %d: %s", kf->p_pid, kvm_geterr(kd));
+			continue;
+		}
+
+		print_proc(kd, kp);
+	}
+
+	(void)kvm_close(kd);
+#else	/* !__OpenBSD__ */
 	struct kinfo_proc *procs;
 	int count;
 
@@ -144,11 +223,15 @@ print_all(void) {
 		print_proc(&procs[i]);
 
 	free(procs);
+#endif	/* !__OpenBSD__ */
 	return (0);
 }
 
 static void
 check_sysctl(void) {
+#ifdef __OpenBSD__
+	int mib[2] = {CTL_KERN, KERN_ALLOWKMEM};
+#endif
 	int value;
 	size_t len = sizeof(value);
 	const char *name= NULL;
@@ -159,15 +242,21 @@ check_sysctl(void) {
 	name = "security.curtain";
 #elif defined(__DragonFly__)
 	name = "security.ps_showallprocs";
+#elif defined(__OpenBSD__)
+	name = "kern.allowkmem";
 #endif
 
+#ifdef __OpenBSD__
+	if (sysctl(mib, nitems(mib), &value, &len, NULL, 0) == -1)
+#else
 	if (sysctlbyname(name, &value, &len, NULL, 0) == -1)
+#endif
 		err(1, "sysctl %s", name);
 
-#if defined(__FreeBSD__) || defined(__DragonFly__)
-	if (!value)
-#elif defined(__NetBSD__)
+#if defined(__NetBSD__)
 	if (value)
+#else
+	if (!value)
 #endif
 		warnx("%s sysctl is set to %d. Run this program as root", name, value);
 }

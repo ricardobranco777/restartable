@@ -45,6 +45,10 @@ kinfo_getallproc(int *cntp)
 	mib[3] = 0;
 #if defined(__NetBSD__)
 	mib[1] = KERN_PROC2;
+#elif defined(__OpenBSD__)
+	mib[1] = KERN_PROC;
+#endif
+#if defined(__NetBSD__) || defined(__OpenBSD__)
 	mib[2] = KERN_PROC_ALL;
 	mib[4] = sizeof(struct kinfo_proc);
 	mib[5] = 0;
@@ -58,7 +62,7 @@ kinfo_getallproc(int *cntp)
 	len = 0;
 	if (sysctl(mib, n, NULL, &len, NULL, 0) < 0)
 		return (NULL);
-#ifdef __NetBSD__
+#if defined(__NetBSD__) || defined(__OpenBSD__)
 	mib[n-1] = (int) (len / sizeof(struct kinfo_proc));
 #endif
 
