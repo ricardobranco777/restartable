@@ -34,6 +34,8 @@
 #include <sys/param.h>
 #include <util.h>
 #elif defined(__DragonFly__)
+#include <sys/param.h>
+#include <sys/mount.h>
 #include <sys/kinfo.h>
 #elif defined(__OpenBSD__)
 #include <sys/param.h>
@@ -232,6 +234,9 @@ check_sysctl(void) {
 #ifdef __OpenBSD__
 	int mib[2] = {CTL_KERN, KERN_ALLOWKMEM};
 #endif
+#ifdef __DragonFly__
+	struct statfs fs;
+#endif
 	int value;
 	size_t len = sizeof(value);
 	const char *name= NULL;
@@ -252,6 +257,11 @@ check_sysctl(void) {
 	if (sysctlbyname(name, &value, &len, NULL, 0) == -1)
 #endif
 		err(1, "sysctl %s", name);
+
+#ifdef __DragonFly__
+	if (statfs("/proc", &fs) < 0 || strcmp(fs.f_mntonname, "/proc"))
+		errx(1, "/proc is not mounted");
+#endif
 
 #if defined(__NetBSD__)
 	if (value)
