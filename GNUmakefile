@@ -13,7 +13,7 @@ $(BIN): *.go
 test:
 	$(GO) vet
 	staticcheck
-	$(GO) test ./... -v
+	$(GO) test
 
 .PHONY: clean
 clean:

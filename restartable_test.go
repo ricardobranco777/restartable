@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -176,7 +177,6 @@ func TestGetCommand(t *testing.T) {
 	tests := []struct {
 		name       string
 		fullPath   bool
-		statusName string
 		cmdline    string
 		exe        string
 		expected   string
@@ -184,7 +184,6 @@ func TestGetCommand(t *testing.T) {
 		{
 			name:       "Test Full Path with Non-Zombie Process",
 			fullPath:   true,
-			statusName: "cmdline data",
 			cmdline:    "cmd --flag=\"value\"",
 			exe:        "/path/to/executable",
 			expected:   "cmd --flag=\"value\"",
@@ -192,7 +191,6 @@ func TestGetCommand(t *testing.T) {
 		{
 			name:       "Test Full Path with Zombie Process",
 			fullPath:   true,
-			statusName: "cmdline data",
 			cmdline:    "cmd --flag=\"value\"",
 			exe:        "",
 			expected:   "cmd --flag=\"value\"",
@@ -200,7 +198,6 @@ func TestGetCommand(t *testing.T) {
 		{
 			name:       "Test Short Path (cmdline exists)",
 			fullPath:   false,
-			statusName: "cmdline data",
 			cmdline:    "cmdline",
 			exe:        "",
 			expected:   "cmdline",
@@ -208,7 +205,6 @@ func TestGetCommand(t *testing.T) {
 		{
 			name:       "Test Command Truncated in Status",
 			fullPath:   false,
-			statusName: "cmdline data",
 			cmdline:    "cmdline",
 			exe:        "",
 			expected:   "cmdline",
@@ -216,7 +212,6 @@ func TestGetCommand(t *testing.T) {
 		{
 			name:       "Test Command 'none' for Kernel Helper",
 			fullPath:   false,
-			statusName: "none",
 			cmdline:    "cmdline",
 			exe:        "",
 			expected:   "cmdline",
@@ -224,7 +219,6 @@ func TestGetCommand(t *testing.T) {
 		{
 			name:       "Test Empty Command",
 			fullPath:   false,
-			statusName: "",
 			cmdline:    "",
 			exe:        "",
 			expected:   "-",
@@ -232,7 +226,6 @@ func TestGetCommand(t *testing.T) {
 		{
 			name:       "Test Non-Zombie Process with Matching Executable Path",
 			fullPath:   true,
-			statusName: "cmdline data",
 			cmdline:    "cmd --flag=\"value\"",
 			exe:        "/path/to/executable",
 			expected:   "cmd --flag=\"value\"",
@@ -240,7 +233,6 @@ func TestGetCommand(t *testing.T) {
 		{
 			name:       "Test Non-Zombie Process with Mismatched Executable Path",
 			fullPath:   true,
-			statusName: "cmdline data",
 			cmdline:    "cmd --flag=\"value\"",
 			exe:        "/different/path/to/executable",
 			expected:   "cmd --flag=\"value\"",
@@ -249,10 +241,10 @@ func TestGetCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := getCommand([]byte(tt.cmdline), tt.exe, tt.fullPath, tt.statusName)
+			cmd := getCommand(strings.Split(tt.cmdline, " "), tt.exe, tt.fullPath)
 
 			if cmd != tt.expected {
-				t.Errorf("expected command: %v, got: %v", tt.expected, cmd)
+				t.Errorf("expected command: %v, got: +%v+", tt.expected, cmd)
 			}
 		})
 	}
