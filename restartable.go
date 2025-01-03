@@ -327,7 +327,7 @@ func runProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (Proc
 		if proc == nil {
 			continue
 		}
-		if opts.short < 3 {
+		if opts.short < 2 || proc.Service != "-" {
 			fmt.Printf("%d\t%d\t%d\t%-20s\t%20s\t%s\n", proc.Pid, proc.Ppid, proc.Uid, getUser(proc.Uid), proc.Service, proc.Command)
 		} else if proc.Service != "-" {
 			services[proc.Service] = true
