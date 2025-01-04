@@ -156,9 +156,11 @@ print_argv(kvm_t *kd, struct kinfo_proc *kp) {
 	}
 	printf("\t");
 #ifndef __OpenBSD__
-	char *arg0 = kinfo_getpathname(kp->ki_pid);
-	if (arg0 != NULL)
-		*argv = arg0;
+	if (*argv[0] != '/') {
+		char *arg0 = kinfo_getpathname(kp->ki_pid);
+		if (arg0 != NULL)
+			*argv = arg0;
+	}
 #endif
 	do {
 		printf(" %s", safe_arg(*argv));
