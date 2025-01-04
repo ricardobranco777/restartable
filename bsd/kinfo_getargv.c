@@ -14,16 +14,6 @@
 
 static char *kinfo_getpathname(pid_t);
 
-#if !defined(__FreeBSD__)
-static char *xbasename(char *s);
-
-static char *
-xbasename(char *s) {
-	char *t = strrchr(s, '/');
-	return (t == NULL ? (char *)s : ++t);
-}
-#endif
-
 static char *
 kinfo_getpathname(pid_t pid)
 {
@@ -98,15 +88,12 @@ kinfo_getargv(pid_t pid)
 	if (argv == NULL)
 		goto bad;
 
-#if !defined(__FreeBSD__) && !defined(__OpenBSD__)
+#ifndef __OpenBSD__
 	if (buf[0] != '/') {
-		argv[0] = kinfo_getpathname(pid);
-		if (argv[0] != NULL) {
-			if (!strcmp(xbasename(buf), xbasename(argv[0]))) {
-				off += strlen(buf) + 1;
-				i++;
-			} else
-				free(argv[0]);
+		char *arg0 = kinfo_getpathname(pid);
+		if (arg0 != NULL) {
+			off += strlen(buf) + 1;
+			argv[i++] = arg0;
 		}
 	}
 #endif
