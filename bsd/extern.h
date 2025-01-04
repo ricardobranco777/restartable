@@ -1,18 +1,6 @@
+#ifdef __DragonFly__
 #include <sys/types.h>
 
-int count_char(const void *, int, size_t);
-void free_argv(char **);
-char **kinfo_getargv(pid_t pid);
-
-#ifdef __NetBSD__
-#define kinfo_proc kinfo_proc2
-#endif
-
-#if defined(__NetBSD__) || defined(__DragonFly__)
-struct kinfo_proc *kinfo_getallproc(int *);
-#endif
-
-#ifdef __DragonFly__
 struct kinfo_vmentry {
 	int	kve_type;
 	int	kve_protection;

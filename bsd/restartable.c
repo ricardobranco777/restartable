@@ -40,10 +40,11 @@
 #elif defined(__OpenBSD__)
 #include <sys/param.h>
 #include <sys/vnode.h>
-#include <kvm.h>
 #endif
 #include <sys/sysctl.h>
+#include <kvm.h>
 
+#include <paths.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,9 +69,69 @@
 #define ki_ruid		kp_ruid
 #endif
 
+#ifdef __NetBSD__
+#define kinfo_proc	kinfo_proc2
+#define kvm_getargv	kvm_getargv2
+#endif
+
+#ifndef KVM_NO_FILES
+#define KVM_NO_FILES	0
+#endif
+
 #include "extern.h"
 
 static int verbose = 0;
+
+/*
+ * Sort processes by pid
+ */
+#ifdef __OpenBSD__
+static int
+kinfo_proc_compare(const void *a, const void *b)
+{
+	return ((const struct kinfo_file *)a)->ki_pid -
+		((const struct kinfo_file *)b)->ki_pid;
+}
+
+static void
+kinfo_proc_sort(struct kinfo_file *kifp, int count)
+{
+	qsort(kifp, count, sizeof(*kifp), kinfo_proc_compare);
+}
+#else
+static int
+kinfo_proc_compare(const void *a, const void *b)
+{
+	return ((const struct kinfo_proc *)a)->ki_pid -
+		((const struct kinfo_proc *)b)->ki_pid;
+}
+
+static void
+kinfo_proc_sort(struct kinfo_proc *kipp, int count)
+{
+	qsort(kipp, count, sizeof(*kipp), kinfo_proc_compare);
+}
+#endif
+
+#ifndef __OpenBSD__
+static char *
+kinfo_getpathname(pid_t pid)
+{
+	static char path[MAXPATHLEN];
+#if defined(__FreeBSD__) || defined(__DragonFly__)
+	int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, pid};
+#elif defined(__NetBSD__)
+	int mib[4] = {CTL_KERN, KERN_PROC_ARGS, pid, KERN_PROC_PATHNAME};
+#endif
+	size_t len = MAXPATHLEN;
+
+	if (sysctl(mib, 4, path, &len, NULL, 0) < 0)
+		return (NULL);
+	path[len] = '\0';
+
+	return (path);
+}
+#endif
 
 /* Avoid ANSI terminal injection from processes that overwrite their argv */
 static char *
@@ -87,57 +148,26 @@ safe_arg(const char *arg) {
 }
 
 static void
-#ifdef __OpenBSD__
 print_argv(kvm_t *kd, struct kinfo_proc *kp) {
 	char **argv = kvm_getargv(kd, kp, 0);
-#else
-print_argv(pid_t pid) {
-	char **argv = kinfo_getargv(pid);
-	char **argvp = argv;
-#endif
-
 	if (argv == NULL) {
-#ifdef __OpenBSD__
-		warn("kvm_getargv(): %d: %s", kp->p_pid, kvm_geterr(kd));
-#else
-		warn("kinfo_getargv(): %d", pid);
-#endif
+		warn("kvm_getargv(): %d: %s", kp->ki_pid, kvm_geterr(kd));
 		return;
 	}
 	printf("\t");
+#ifndef __OpenBSD__
+	char *arg0 = kinfo_getpathname(kp->ki_pid);
+	if (arg0 != NULL)
+		*argv = arg0;
+#endif
 	do {
 		printf(" %s", safe_arg(*argv));
 	} while (*++argv);
 	printf("\n");
-
-#ifndef __OpenBSD__
-	free_argv(argvp);
-#endif
-}
-
-#ifdef __OpenBSD__
-static int
-kinfo_file_compare(const void *a, const void *b)
-{
-
-	return ((const struct kinfo_file *)a)->p_pid -
-	    ((const struct kinfo_file *)b)->p_pid;
 }
 
 static void
-kinfo_file_sort(struct kinfo_file *kifp, int count)
-{
-
-	qsort(kifp, count, sizeof(*kifp), kinfo_file_compare);
-}
-#endif
-
-static void
-#ifdef __OpenBSD__
 print_proc(kvm_t *kd, struct kinfo_proc *kp) {
-#else
-print_proc(const struct kinfo_proc *kp) {
-#endif
 #if defined(__FreeBSD__) || defined(__DragonFly__)
 	int i, count;
 #elif defined(__NetBSD__)
@@ -163,13 +193,13 @@ print_proc(const struct kinfo_proc *kp) {
 			printf("%d\t%d\t%d\t%s\t%s\n", kp->ki_pid, kp->ki_ppid,
 			    kp->ki_ruid, kp->ki_login, safe_arg(kp->ki_comm));
 			if (verbose)
-				print_argv(kp->ki_pid);
+				print_argv(kd, kp);
 			break;
 		}
 
 	free(vmmap);
 
-#else	/* !__OpenBSD__ */
+#else	/* __OpenBSD__ */
 	printf("%d\t%d\t%d\t%s\t%s\n", kp->ki_pid, kp->ki_ppid,
 	    kp->ki_ruid, kp->ki_login, safe_arg(kp->ki_comm));
 	if (verbose)
@@ -179,21 +209,24 @@ print_proc(const struct kinfo_proc *kp) {
 
 static int
 print_all(void) {
-#ifdef __OpenBSD__
 	char errstr[_POSIX2_LINE_MAX];
+#ifdef __OpenBSD__
 	struct kinfo_file *files;
+#else
+	struct kinfo_proc *procs;
+#endif
 	kvm_t *kd;
 	int count;
 
-	kd = kvm_openfiles(NULL, NULL, NULL, KVM_NO_FILES, errstr);
+	kd = kvm_openfiles(_PATH_DEVNULL, _PATH_DEVNULL, _PATH_DEVNULL, O_RDONLY | KVM_NO_FILES, errstr);
 	if (kd == NULL)
 		errx(1, "kvm_openfiles(): %s", errstr);
 
+#ifdef __OpenBSD__
 	files = kvm_getfiles(kd, KERN_FILE_BYPID, -1, sizeof(*files), &count);
 	if (files == NULL)
 		errx(1, "kvm_getfiles(): %s", kvm_geterr(kd));
-
-	kinfo_file_sort(files, count);
+	kinfo_proc_sort(files, count);
 
 	for (int i = 0; i < count; i++) {
 		struct kinfo_file *kf = &files[i];
@@ -203,29 +236,29 @@ print_all(void) {
 		if (kf->v_flag != VTEXT || kf->va_nlink != 0)
 			continue;
 
-		kp = kvm_getprocs(kd, KERN_PROC_PID, kf->p_pid, sizeof(struct kinfo_proc), &rc);
+		kp = kvm_getprocs(kd, KERN_PROC_PID, kf->ki_pid, sizeof(struct kinfo_proc), &rc);
 		if (kp == NULL) {
-			warn("kvm_getprocs(): %d: %s", kf->p_pid, kvm_geterr(kd));
+			warn("kvm_getprocs(): %d: %s", kf->ki_pid, kvm_geterr(kd));
 			continue;
 		}
 
 		print_proc(kd, kp);
 	}
-
-	(void)kvm_close(kd);
-#else	/* !__OpenBSD__ */
-	struct kinfo_proc *procs;
-	int count;
-
-	procs = kinfo_getallproc(&count);
+#else
+#ifdef __NetBSD__
+	procs = kvm_getproc2(kd, KERN_PROC_ALL, 0, sizeof(struct kinfo_proc2), &count);
+#else
+	procs = kvm_getprocs(kd, KERN_PROC_ALL, 0, &count);
+#endif
 	if (procs == NULL)
-		err(1, "kinfo_getallproc()");
+		errx(1, "kvm_getprocs(): %s", kvm_geterr(kd));
+	kinfo_proc_sort(procs, count / sizeof(*procs));
 
 	for (int i = 0; i < count; i++)
-		print_proc(&procs[i]);
-
-	free(procs);
+		print_proc(kd, &procs[i]);
 #endif	/* !__OpenBSD__ */
+
+	(void)kvm_close(kd);
 	return (0);
 }
 

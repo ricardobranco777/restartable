@@ -8,23 +8,18 @@ CFLAGS+= -Wall -Wmissing-prototypes -Wno-uninitialized -Wstrict-prototypes
 LDADD+= -lkvm
 DPADD+= ${LIBKVM}
 .else
-LDFLAGS= -lutil
-.endif
-.if ${OPSYS} != "DragonFly"
+LDFLAGS= -lutil -lkvm
 .endif
 SRCS= restartable.c
-HDRS= extern.h
-.if ${OPSYS} != "OpenBSD"
-SRCS+= kinfo_getargv.c util.c
+.if ${OPSYS} == "DragonFly"
+SRCS+= kinfo_getvmmap.c
 .endif
-
-BINDIR= /usr/local/bin
+HDRS= extern.h
 
 .if ${OPSYS} == "NetBSD"
 BINDIR= /usr/pkg/bin
-SRCS+= kinfo_getallproc.c
-.elif ${OPSYS} == "DragonFly"
-SRCS+= kinfo_getallproc.c kinfo_getvmmap.c
+.else
+BINDIR= /usr/local/bin
 .endif
 
 MK_DEBUG_FILES= no

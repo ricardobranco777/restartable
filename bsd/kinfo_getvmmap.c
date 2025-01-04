@@ -1,3 +1,5 @@
+/* Minimal implementation of kinfo_getvmmap for DragonflyBSD */
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <err.h>
@@ -9,6 +11,18 @@
 #include <unistd.h>
 
 #include "extern.h"
+
+static int
+count_char(const void *p, int c, size_t len)
+{
+	int n = 0;
+
+	for (size_t i = 0; i < len; i++)
+		if (*((const unsigned char *)p + i) == c)
+			n++;
+
+	return n;
+}
 
 static char *
 procmap(pid_t pid)
