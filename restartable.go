@@ -143,18 +143,34 @@ func getService(cgroup string, userService bool) string {
 }
 
 // getCommand retrieves the command
-func getCommand(cmdline []string, exe string, fullPath bool) string {
-	var command string
+func getCommand(data []byte, exe string, fullPath bool, statusName string) string {
+	data = bytes.TrimSuffix(data, []byte("\x00"))
+	cmdline := strings.Split(string(data), "\x00")
 
+	var command string
 	if fullPath {
+		// Use full path
+
+		// cmdline is empty if zombie, but zombies have void maps
 		exe = strings.TrimSuffix(exe, " (deleted)")
 		if exe != "" && !strings.HasPrefix(cmdline[0], "/") && filepath.Base(cmdline[0]) == filepath.Base(exe) {
 			cmdline[0] = exe
 		}
 		command = strings.Join(cmdline, " ")
-	} else if cmdline[0] != "" {
-		command = filepath.Base(cmdline[0])
+	} else {
+		command = statusName
+		// The command may be truncated to 15 chars in /proc/<pid>/status
+		// Also, kernel usermode helpers use "none"
+		if (len(command) == 15 || command == "none") && len(cmdline) > 0 && cmdline[0] != "" {
+			command = cmdline[0]
+		}
+		if strings.HasPrefix(command, "/") {
+			command = filepath.Base(command)
+		} else {
+			command = strings.Split(command, " ")[0]
+		}
 	}
+
 	if command == "" {
 		command = "-"
 	}
@@ -215,15 +231,15 @@ func getProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 	ppid, _ := strconv.Atoi(parseStatusField(status, "PPid"))
 	uid, _ := strconv.Atoi(strings.Fields(parseStatusField(status, "Uid"))[0])
 
-	var cmdline []string
-	if data, err = fs.ReadFile("cmdline"); err != nil {
+	cmdline, err := fs.ReadFile("cmdline")
+	if err != nil {
 		return nil, err
-	} else {
-		data = bytes.TrimSuffix(data, []byte("\x00"))
-		cmdline = strings.Split(string(data), "\x00")
 	}
-	exe, _ := fs.ReadLink("exe")
-	command := getCommand(cmdline, exe, fullPath)
+	exe, err := fs.ReadLink("exe")
+	if err != nil {
+		exe = ""
+	}
+	command := getCommand(cmdline, exe, fullPath, parseStatusField(status, "Name"))
 
 	cgroup, err := fs.ReadFile("cgroup")
 	if err != nil {
