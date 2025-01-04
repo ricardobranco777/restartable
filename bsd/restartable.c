@@ -295,7 +295,9 @@ main(int argc, char *argv[]) {
 	if (argc != 0)
 		usage();
 
+#ifndef __OpenBSD__
 	if (geteuid())
+#endif
 		check_sysctl();
 
 	printf("PID\tPPID\tUID\tUser\tCommand\n");
