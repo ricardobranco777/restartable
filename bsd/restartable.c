@@ -241,14 +241,17 @@ print_all(void) {
 		print_proc(kd, kp);
 	}
 #else
-#ifdef __NetBSD__
+
+#if defined(__NetBSD__)
 	procs = kvm_getproc2(kd, KERN_PROC_ALL, 0, sizeof(struct kinfo_proc2), &count);
-#else
+#elif defined(__FreeBSD__)
+	procs = kvm_getprocs(kd, KERN_PROC_PROC, 0, &count);
+#elif defined(__DragonFly__)
 	procs = kvm_getprocs(kd, KERN_PROC_ALL, 0, &count);
 #endif
 	if (procs == NULL)
 		errx(1, "kvm_getprocs(): %s", kvm_geterr(kd));
-	kinfo_proc_sort(procs, count / sizeof(*procs));
+	kinfo_proc_sort(procs, count);
 
 	for (int i = 0; i < count; i++)
 		print_proc(kd, &procs[i]);
