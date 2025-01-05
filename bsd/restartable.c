@@ -314,7 +314,6 @@ version(void) {
 int
 main(int argc, char *argv[]) {
 	int ch;
-
 	struct option longopts[] = {
 		{"verbose", no_argument, NULL, 'v'},
 		{"version", no_argument, NULL, 'V'},

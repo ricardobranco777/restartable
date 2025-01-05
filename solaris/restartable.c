@@ -10,9 +10,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <libproc.h>
 #define _KERNEL
 #include <sys/procfs.h>
+
+#define VERSION	"2.3.4"
 
 static int verbose;
 
@@ -146,31 +149,44 @@ print_all(void) {
 }
 
 static void
-usage(void)
-{
+usage(void) {
 	fprintf(stderr, "Usage: %s [-v]\n", getprogname());
 	exit(1);
+}
+
+static void
+version(void) {
+	printf("%s %s\n", getprogname(), VERSION);
 }
 
 int
 main(int argc, char *argv[]) {
 	int ch;
+	struct option longopts[] = {
+		{"verbose", no_argument, NULL, 'v'},
+		{"version", no_argument, NULL, 'V'},
+	};
 
-	while ((ch = getopt(argc, argv, "v")) != -1) {
+	while ((ch = getopt_long(argc, argv, "v", longopts, NULL)) != -1) {
 		switch (ch) {
 		case 'v':
 			verbose = 1;
 			break;
+		case 'V':
+			version();
+			return (0);
 		default:
 			usage();
 		}
 	}
+
 	argc -= optind;
+	argv += optind;
 	if (argc != 0)
 		usage();
 
 	printf("PID\tPPID\tUID\tUser\tCommand\n");
 	print_all();
 
-	return 0;
+	return (0);
 }
