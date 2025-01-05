@@ -89,32 +89,23 @@ static int verbose = 0;
  * Sort processes by pid
  */
 #ifdef __OpenBSD__
-static int
-kinfo_proc_compare(const void *a, const void *b)
-{
-	return ((const struct kinfo_file *)a)->ki_pid -
-		((const struct kinfo_file *)b)->ki_pid;
-}
-
-static void
-kinfo_proc_sort(struct kinfo_file *kifp, int count)
-{
-	qsort(kifp, count, sizeof(*kifp), kinfo_proc_compare);
-}
+typedef struct kinfo_file kinfo_t;
 #else
+typedef struct kinfo_proc kinfo_t;
+#endif
+
 static int
 kinfo_proc_compare(const void *a, const void *b)
 {
-	return ((const struct kinfo_proc *)a)->ki_pid -
-		((const struct kinfo_proc *)b)->ki_pid;
+	return ((const kinfo_t *)a)->ki_pid -
+		((const kinfo_t *)b)->ki_pid;
 }
 
 static void
-kinfo_proc_sort(struct kinfo_proc *kipp, int count)
+kinfo_proc_sort(kinfo_t *k, int count)
 {
-	qsort(kipp, count, sizeof(*kipp), kinfo_proc_compare);
+	qsort(k, count, sizeof(*k), kinfo_proc_compare);
 }
-#endif
 
 #ifndef __OpenBSD__
 static char *
