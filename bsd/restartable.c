@@ -52,6 +52,7 @@
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <limits.h>
 #include <vis.h>
 
@@ -79,6 +80,8 @@
 #endif
 
 #include "extern.h"
+
+#define VERSION	"2.3.4"
 
 static int verbose = 0;
 
@@ -307,26 +310,40 @@ check_sysctl(void) {
 }
 
 static void
-usage(void)
-{
-	fprintf(stderr, "Usage: %s [-v]\n", getprogname());
+usage(void) {
+	fprintf(stderr, "Usage: %s [-v|--verbose]\n", getprogname());
 	exit(1);
+}
+
+static void
+version(void) {
+	printf("%s %s\n", getprogname(), VERSION);
 }
 
 int
 main(int argc, char *argv[]) {
 	int ch;
 
-	while ((ch = getopt(argc, argv, "v")) != -1) {
+	struct option longopts[] = {
+		{"verbose", no_argument, NULL, 'v'},
+		{"version", no_argument, NULL, 'V'},
+	};
+
+	while ((ch = getopt_long(argc, argv, "v", longopts, NULL)) != -1) {
 		switch (ch) {
 		case 'v':
 			verbose = 1;
 			break;
+		case 'V':
+			version();
+			return (0);
 		default:
 			usage();
 		}
 	}
+
 	argc -= optind;
+	argv += optind;
 	if (argc != 0)
 		usage();
 
