@@ -224,6 +224,8 @@ print_all(void) {
 		errx(1, "kvm_getfiles(): %s", kvm_geterr(kd));
 	kinfo_proc_sort(files, count);
 
+	if (unveil(NULL, NULL) == -1)
+		err(1, "unveil");
 	if (pledge("stdio rpath getpw ps", NULL) == -1)
 		err(1, "pledge");
 
