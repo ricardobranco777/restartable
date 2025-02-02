@@ -4,10 +4,9 @@ BIN	= restartable
 all:	$(BIN)
 
 GO	:= go
-CGO_ENABLED := 0
 
 $(BIN): *.go
-	CGO_ENABLED=$(CGO_ENABLED) $(GO) build
+	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -buildid=" -buildmode=pie
 
 .PHONY: test
 test:
