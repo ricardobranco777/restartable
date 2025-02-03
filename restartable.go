@@ -78,13 +78,19 @@ func (p *RealProcPidFS) ReadFile(path string) ([]byte, error) {
 			d := append(data[:cap(data)], 0)
 			data = d[:len(data)]
 		}
-		if n, err := unix.Read(fd, data[len(data):cap(data)]); n > 0 {
+		n, err := unix.Read(fd, data[len(data):cap(data)])
+		if n > 0 {
 			data = data[:len(data)+n]
-		} else {
-			if err != nil {
-				err = &os.PathError{Op: "read", Path: fmt.Sprintf("/proc/%d/%s", p.pid, path), Err: err}
+		}
+		if err != nil {
+			if errors.Is(err, unix.EINTR) {
+				continue
 			}
+			err = &os.PathError{Op: "read", Path: fmt.Sprintf("/proc/%d/%s", p.pid, path), Err: err}
 			return data, err
+		}
+		if n == 0 {
+			return data, nil
 		}
 	}
 }
