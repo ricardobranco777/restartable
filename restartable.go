@@ -20,7 +20,7 @@ import (
 
 import flag "github.com/spf13/pflag"
 
-const version = "2.3.4"
+const version = "2.3.5"
 
 // ProcFS defines an interface for /proc/ filesystem access
 type ProcFS interface {
