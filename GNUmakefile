@@ -5,8 +5,16 @@ all:	$(BIN)
 
 GO	:= go
 
+# https://github.com/golang/go/issues/64875
+arch := $(shell uname -m)
+ifeq ($(arch),s390x)
+CGO_ENABLED = 0
+else
+CGO_ENABLED := 1
+endif
+
 $(BIN): *.go
-	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -buildid=" -buildmode=pie
+	CGO_ENABLED=$(CGO_ENABLED) $(GO) build -trimpath -ldflags="-s -w -buildid=" -buildmode=pie
 
 .PHONY: test
 test:
