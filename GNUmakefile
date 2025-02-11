@@ -18,8 +18,8 @@ $(BIN): *.go
 
 .PHONY: test
 test:
-	$(GO) vet
 	staticcheck
+	$(GO) vet
 	$(GO) test ./... -v
 
 .PHONY: clean
