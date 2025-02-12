@@ -22,6 +22,10 @@ test:
 	$(GO) vet
 	$(GO) test ./... -v
 
+.PHONY: lint
+lint:
+	golangci-lint run ./...
+
 .PHONY: clean
 clean:
 	$(GO) clean
