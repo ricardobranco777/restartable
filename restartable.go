@@ -329,7 +329,7 @@ func runProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (Proc
 			defer close(channel[pid])
 			fs, err := openProc(pid)
 			if err != nil {
-				if !errors.Is(err, unix.ENOENT) {
+				if !errors.Is(err, unix.ENOENT) && !errors.Is(err, unix.ESRCH) {
 					log.Print(err)
 				}
 				return
@@ -352,7 +352,7 @@ func runProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (Proc
 		if proc.Service != "-" {
 			services[proc.Service] = true
 		}
-		if (opts.short < 3 && proc.Service != "-" || opts.short < 2) {
+		if opts.short < 3 && proc.Service != "-" || opts.short < 2 {
 			fmt.Printf("%d\t%d\t%d\t%-20s\t%20s\t%s\n", proc.Pid, proc.Ppid, proc.Uid, getUser(proc.Uid), proc.Service, proc.Command)
 		}
 		if opts.short == 0 {

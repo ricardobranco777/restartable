@@ -18,9 +18,10 @@ $(BIN): *.go
 
 .PHONY: test
 test:
-	staticcheck
-	$(GO) vet
 	$(GO) test ./... -v
+	$(GO) vet
+	staticcheck
+	gofmt -s -l .
 
 .PHONY: lint
 lint:
