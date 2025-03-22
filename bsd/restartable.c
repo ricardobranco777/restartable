@@ -177,7 +177,7 @@ print_proc(kvm_t *kd, struct kinfo_proc *kp) {
 
 	struct kinfo_vmentry *vmmap = kinfo_getvmmap(kp->ki_pid, &count);
 	if (vmmap == NULL) {
-		if (errno != EPERM && errno != ENOENT)
+		if (errno != EPERM && errno != ENOENT && errno != ESRCH)
 			warn("kinfo_getvmmap(): %d", kp->ki_pid);
 		return;
 	}
