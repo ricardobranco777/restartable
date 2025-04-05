@@ -3,7 +3,8 @@ BIN	= restartable
 .PHONY: all
 all:	$(BIN)
 
-GO	:= go
+DOCKER	?= podman
+GO	?= go
 
 # https://github.com/golang/go/issues/64875
 arch := $(shell uname -m)
@@ -15,6 +16,14 @@ endif
 
 $(BIN): *.go
 	CGO_ENABLED=$(CGO_ENABLED) $(GO) build -trimpath -ldflags="-s -w -buildid=" -buildmode=pie
+
+.PHONY: build
+build:
+	image=$$( $(DOCKER) build -q . ) && \
+	container=$$( $(DOCKER) create $$image ) && \
+	$(DOCKER) cp $$container:/usr/local/bin/restartable . && \
+	$(DOCKER) rm -vf $$container && \
+	$(DOCKER) rmi $$image
 
 .PHONY: test
 test:
