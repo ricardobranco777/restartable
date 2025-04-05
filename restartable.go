@@ -41,9 +41,9 @@ type ProcPidFS interface {
 // ProcPid implements ProcPidFS for real /proc/<pid> filesystem
 type ProcPid struct {
 	ProcPidFS
-	*os.Root
-	fd  int
-	pid int
+	fd   int
+	pid  int
+	root *os.Root
 }
 
 // ProcPid satisfies ProcPidFS interface
@@ -53,7 +53,7 @@ var _ ProcPidFS = &ProcPid{}
 func (p *ProcPid) getFD() int {
 	if p.fd < 0 {
 		// Reflect into *os.Root -> .root -> .fd
-		rootVal := reflect.ValueOf(p.Root).Elem().FieldByName("root")
+		rootVal := reflect.ValueOf(p.root).Elem().FieldByName("root")
 		rootPtr := reflect.NewAt(rootVal.Type(), unsafe.Pointer(rootVal.UnsafeAddr())).Elem()
 
 		fdField := rootPtr.Elem().FieldByName("fd")
@@ -70,17 +70,17 @@ func OpenProcPid(pid int) (*ProcPid, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ProcPid{Root: root, fd: -1, pid: pid}, nil
+	return &ProcPid{root: root, fd: -1, pid: pid}, nil
 }
 
 // Close releases the file descriptor
 func (p *ProcPid) Close() error {
-	return p.Root.Close()
+	return p.root.Close()
 }
 
 // ReadFile reads a file inside /proc/<pid>
 func (p *ProcPid) ReadFile(path string) ([]byte, error) {
-	rfs, ok := p.Root.FS().(fs.ReadFileFS)
+	rfs, ok := p.root.FS().(fs.ReadFileFS)
 	if !ok {
 		panic("ProcPid.Root does not implement ReadFileFS")
 	}
