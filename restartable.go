@@ -258,11 +258,9 @@ func getProcessInfo(p ProcPidFS, fullPath bool, userService bool) (*ProcessInfo,
 
 // Quote special characters
 func quoteString(str string) string {
-	if len(str) > 0 {
-		str = strconv.Quote(str)
-		return str[1 : len(str)-1]
-	}
-	return ""
+	quoted := strconv.AppendQuote(nil, str)
+	// Strip the surrounding double quotes
+	return string(quoted[1 : len(quoted)-1])
 }
 
 // Get username from UID
