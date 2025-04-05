@@ -208,8 +208,8 @@ type ProcessInfo struct {
 }
 
 // getProcessInfo gets process information
-func getProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo, error) {
-	maps, err := fs.ReadFile("maps")
+func getProcessInfo(p ProcPidFS, fullPath bool, userService bool) (*ProcessInfo, error) {
+	maps, err := p.ReadFile("maps")
 	if err != nil {
 		if errors.Is(err, unix.EACCES) {
 			err = nil
@@ -221,7 +221,7 @@ func getProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 		return nil, nil
 	}
 
-	data, err := fs.ReadFile("status")
+	data, err := p.ReadFile("status")
 	if err != nil {
 		return nil, err
 	}
@@ -230,17 +230,17 @@ func getProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 	ppid, _ := strconv.Atoi(parseStatusField(status, "PPid"))
 	uid, _ := strconv.Atoi(strings.Fields(parseStatusField(status, "Uid"))[0])
 
-	cmdline, err := fs.ReadFile("cmdline")
+	cmdline, err := p.ReadFile("cmdline")
 	if err != nil {
 		return nil, err
 	}
-	exe, err := fs.ReadLink("exe")
+	exe, err := p.ReadLink("exe")
 	if err != nil {
 		exe = ""
 	}
 	command := getCommand(cmdline, exe, fullPath, parseStatusField(status, "Name"))
 
-	cgroup, err := fs.ReadFile("cgroup")
+	cgroup, err := p.ReadFile("cgroup")
 	if err != nil {
 		cgroup = []byte("")
 	}
@@ -249,7 +249,7 @@ func getProcessInfo(fs ProcPidFS, fullPath bool, userService bool) (*ProcessInfo
 	return &ProcessInfo{
 		Command: quoteString(command),
 		Deleted: deleted,
-		Pid:     fs.PID(),
+		Pid:     p.PID(),
 		Ppid:    ppid,
 		Uid:     uid,
 		Service: service,
@@ -324,15 +324,15 @@ func runProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (Proc
 	for _, pid := range pids {
 		go func(pid int) {
 			defer close(channel[pid])
-			fs, err := openProc(pid)
+			p, err := openProc(pid)
 			if err != nil {
 				if !errors.Is(err, unix.ENOENT) && !errors.Is(err, unix.ESRCH) {
 					log.Print(err)
 				}
 				return
 			}
-			defer fs.Close()
-			info, err := getProcessInfo(fs, opts.verbose, opts.user)
+			defer p.Close()
+			info, err := getProcessInfo(p, opts.verbose, opts.user)
 			if err != nil {
 				log.Print(err)
 			}

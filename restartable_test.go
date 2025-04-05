@@ -13,15 +13,15 @@ import (
 func TestRealProcPid(t *testing.T) {
 	pid := os.Getpid()
 
-	fs, err := OpenProcPid("/proc", pid)
+	p, err := OpenProcPid("/proc", pid)
 	if err != nil {
 		t.Fatalf("failed to open /proc/%d: %v", pid, err)
 	}
-	defer fs.Close()
+	defer p.Close()
 
 	// Test PID method
 	t.Run("PID", func(t *testing.T) {
-		got := fs.PID()
+		got := p.PID()
 		if got != pid {
 			t.Errorf("PID() = %d, want %d", got, pid)
 		}
@@ -33,7 +33,7 @@ func TestRealProcPid(t *testing.T) {
 	for _, file := range filesToTest {
 		t.Run(file, func(t *testing.T) {
 			// Custom ReadFile method
-			data, err := fs.ReadFile(file)
+			data, err := p.ReadFile(file)
 			if err != nil {
 				t.Errorf("failed to read /proc/%d/%s: %v", pid, file, err)
 			}
@@ -53,7 +53,7 @@ func TestRealProcPid(t *testing.T) {
 
 	// Test ReadLink with real data and compare to os.ReadLink
 	t.Run("exe", func(t *testing.T) {
-		link, err := fs.ReadLink("exe")
+		link, err := p.ReadLink("exe")
 		if err != nil {
 			t.Errorf("failed to read /proc/%d/exe: %v", pid, err)
 		}
