@@ -7,20 +7,23 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/sys/unix"
+	"io/fs"
 	"log"
 	"os"
 	"os/user"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"unsafe"
 )
 
 import flag "github.com/spf13/pflag"
 
-const version = "2.3.5"
+const version = "2.3.9"
 
 // ProcFS defines an interface for /proc/ filesystem access
 type ProcFS interface {
@@ -35,71 +38,60 @@ type ProcPidFS interface {
 	PID() int
 }
 
-// RealProcPidFS implements ProcPidFS for real /proc/<pid> filesystem
-type RealProcPidFS struct {
+// ProcPid implements ProcPidFS for real /proc/<pid> filesystem
+type ProcPid struct {
 	ProcPidFS
-	dirFd int
-	pid   int
+	*os.Root
+	fd  int
+	pid int
+}
+
+// getFD returns the fd from *os.Root
+func (p *ProcPid) getFD() int {
+	if p.fd < 0 {
+		// Reflect into *os.Root -> .root -> .fd
+		rootVal := reflect.ValueOf(p.Root).Elem().FieldByName("root")
+		rootPtr := reflect.NewAt(rootVal.Type(), unsafe.Pointer(rootVal.UnsafeAddr())).Elem()
+
+		fdField := rootPtr.Elem().FieldByName("fd")
+		fdVal := reflect.NewAt(fdField.Type(), unsafe.Pointer(fdField.UnsafeAddr())).Elem()
+
+		p.fd = int(fdVal.Int())
+	}
+	return p.fd
 }
 
 // OpenProc opens a /proc/<pid> directory and returns a ProcPidFS instance
-func OpenProcPid(procDir string, pid int) (*RealProcPidFS, error) {
+func OpenProcPid(procDir string, pid int) (*ProcPid, error) {
 	if procDir == "" {
 		procDir = "/proc"
 	}
-	path := filepath.Join(procDir, strconv.Itoa(pid))
-	dirFd, err := unix.Open(path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_PATH, 0)
+	root, err := os.OpenRoot(filepath.Join(procDir, strconv.Itoa(pid)))
 	if err != nil {
-		return nil, &os.PathError{Op: "open", Path: fmt.Sprintf("/proc/%d", pid), Err: err}
+		return nil, err
 	}
-	return &RealProcPidFS{dirFd: dirFd, pid: pid}, nil
+	return &ProcPid{Root: root, fd: -1, pid: pid}, nil
 }
 
 // Close releases the file descriptor
-func (p *RealProcPidFS) Close() error {
-	err := unix.Close(p.dirFd)
-	if err != nil {
-		return &os.PathError{Op: "close", Path: "/proc", Err: err}
-	}
-	return nil
+func (p *ProcPid) Close() error {
+	return p.Root.Close()
 }
 
 // ReadFile reads a file inside /proc/<pid>
-func (p *RealProcPidFS) ReadFile(path string) ([]byte, error) {
-	fd, err := unix.Openat(p.dirFd, path, unix.O_RDONLY|unix.O_NOFOLLOW, 0)
-	if err != nil {
-		return nil, &os.PathError{Op: "openat", Path: fmt.Sprintf("/proc/%d/%s", p.pid, path), Err: err}
+func (p *ProcPid) ReadFile(path string) ([]byte, error) {
+	rfs, ok := p.Root.FS().(fs.ReadFileFS)
+	if !ok {
+		panic("ProcPid.Root does not implement ReadFileFS")
 	}
-	defer unix.Close(fd)
-
-	data := make([]byte, 0, 8192)
-	for {
-		if len(data) >= cap(data) {
-			d := append(data[:cap(data)], 0)
-			data = d[:len(data)]
-		}
-		n, err := unix.Read(fd, data[len(data):cap(data)])
-		if n > 0 {
-			data = data[:len(data)+n]
-		}
-		if err != nil {
-			if errors.Is(err, unix.EINTR) {
-				continue
-			}
-			err = &os.PathError{Op: "read", Path: fmt.Sprintf("/proc/%d/%s", p.pid, path), Err: err}
-			return data, err
-		}
-		if n == 0 {
-			return data, nil
-		}
-	}
+	return rfs.ReadFile(path)
 }
 
 // ReadLink reads a symbolic link inside /proc/<pid>
-func (p *RealProcPidFS) ReadLink(path string) (string, error) {
+func (p *ProcPid) ReadLink(path string) (string, error) {
 	for size := unix.PathMax; ; size *= 2 {
 		data := make([]byte, unix.PathMax)
-		if n, err := unix.Readlinkat(p.dirFd, path, data); err != nil {
+		if n, err := unix.Readlinkat(p.getFD(), path, data); err != nil {
 			return "", &os.PathError{Op: "readlinkat", Path: fmt.Sprintf("/proc/%d/%s", p.pid, path), Err: err}
 		} else if n != size {
 			return string(data[:n]), nil
@@ -108,7 +100,7 @@ func (p *RealProcPidFS) ReadLink(path string) (string, error) {
 }
 
 // PID returns the process ID
-func (p *RealProcPidFS) PID() int {
+func (p *ProcPid) PID() int {
 	return p.pid
 }
 

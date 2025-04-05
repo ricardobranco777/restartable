@@ -283,17 +283,17 @@ func TestParseStatusField(t *testing.T) {
 	}
 }
 
-type MockProcPidFS struct {
+type MockProcPid struct {
 	fs  fs.FS
 	pid int
 }
 
-func (p *MockProcPidFS) ReadFile(path string) ([]byte, error) {
+func (p *MockProcPid) ReadFile(path string) ([]byte, error) {
 	return fs.ReadFile(p.fs, path)
 }
 
 // Workaround for https://github.com/golang/go/issues/49580
-func (p *MockProcPidFS) ReadLink(path string) (string, error) {
+func (p *MockProcPid) ReadLink(path string) (string, error) {
 	file, err := p.fs.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("failed to open path: %w", err)
@@ -315,15 +315,15 @@ func (p *MockProcPidFS) ReadLink(path string) (string, error) {
 	return "", fmt.Errorf("symlink target not found")
 }
 
-func (p *MockProcPidFS) PID() int {
+func (p *MockProcPid) PID() int {
 	return p.pid
 }
 
-func (p *MockProcPidFS) Close() error {
+func (p *MockProcPid) Close() error {
 	return nil
 }
 
-func mockProcFS(pid int, files map[string]string, symlinks map[string]string) *MockProcPidFS {
+func mockProcFS(pid int, files map[string]string, symlinks map[string]string) *MockProcPid {
 	mockFS := fstest.MapFS{}
 
 	for path, content := range files {
@@ -337,7 +337,7 @@ func mockProcFS(pid int, files map[string]string, symlinks map[string]string) *M
 		}
 	}
 
-	return &MockProcPidFS{fs: mockFS, pid: pid}
+	return &MockProcPid{fs: mockFS, pid: pid}
 }
 
 // Test getProcessInfo
