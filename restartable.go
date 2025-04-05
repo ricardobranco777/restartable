@@ -89,14 +89,12 @@ func (p *ProcPid) ReadFile(path string) ([]byte, error) {
 
 // ReadLink reads a symbolic link inside /proc/<pid>
 func (p *ProcPid) ReadLink(path string) (string, error) {
-	for size := unix.PathMax; ; size *= 2 {
-		data := make([]byte, unix.PathMax)
-		if n, err := unix.Readlinkat(p.getFD(), path, data); err != nil {
-			return "", &os.PathError{Op: "readlinkat", Path: fmt.Sprintf("/proc/%d/%s", p.pid, path), Err: err}
-		} else if n != size {
-			return string(data[:n]), nil
-		}
+	data := make([]byte, unix.PathMax)
+	n, err := unix.Readlinkat(p.getFD(), path, data)
+	if err != nil {
+		return "", &os.PathError{Op: "readlinkat", Path: fmt.Sprintf("/proc/%d/%s", p.pid, path), Err: err}
 	}
+	return string(data[:n]), nil
 }
 
 // PID returns the process ID
