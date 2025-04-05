@@ -311,6 +311,10 @@ func runProcessMonitor(lister ProcessLister, opts Opts, openProc func(int) (Proc
 		fmt.Printf("%s\t%s\t%s\t%-20s\t%20s\t%s\n", "PID", "PPID", "UID", "User", "Service", "Command")
 	}
 
+	if len(pids) == 0 {
+		return
+	}
+
 	channel := make(map[int]chan *ProcessInfo, len(pids))
 	for _, pid := range pids {
 		channel[pid] = make(chan *ProcessInfo, 1)
