@@ -46,6 +46,9 @@ type ProcPid struct {
 	pid int
 }
 
+// ProcPid satisfies ProcPidFS interface
+var _ ProcPidFS = &ProcPid{}
+
 // getFD returns the fd from *os.Root
 func (p *ProcPid) getFD() int {
 	if p.fd < 0 {
