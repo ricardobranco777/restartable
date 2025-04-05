@@ -65,11 +65,8 @@ func (p *ProcPid) getFD() int {
 }
 
 // OpenProc opens a /proc/<pid> directory and returns a ProcPidFS instance
-func OpenProcPid(procDir string, pid int) (*ProcPid, error) {
-	if procDir == "" {
-		procDir = "/proc"
-	}
-	root, err := os.OpenRoot(filepath.Join(procDir, strconv.Itoa(pid)))
+func OpenProcPid(pid int) (*ProcPid, error) {
+	root, err := os.OpenRoot(filepath.Join("/proc", strconv.Itoa(pid)))
 	if err != nil {
 		return nil, err
 	}
@@ -397,6 +394,6 @@ func main() {
 	}
 
 	runProcessMonitor(DefaultProcessLister{}, opts, func(pid int) (ProcPidFS, error) {
-		return OpenProcPid("/proc", pid)
+		return OpenProcPid(pid)
 	})
 }
