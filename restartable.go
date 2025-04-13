@@ -153,6 +153,9 @@ func getCommand(data []byte, exe string, fullPath bool, statusName string) strin
 			cmdline[0] = exe
 		}
 		command = strings.Join(cmdline, " ")
+		if command == "" {
+			command = statusName
+		}
 	} else {
 		command = statusName
 		// The command may be truncated to 15 chars in /proc/<pid>/status
