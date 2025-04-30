@@ -1,4 +1,4 @@
-FROM	docker.io/library/golang AS builder
+FROM	docker.io/library/golang:tip-bookworm AS builder
 
 WORKDIR	/go/src/restartable
 COPY	. .
