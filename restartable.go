@@ -12,13 +12,11 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
-	"unsafe"
 )
 
 import flag "github.com/spf13/pflag"
@@ -49,21 +47,6 @@ type ProcPid struct {
 // ProcPid satisfies ProcPidFS interface
 var _ ProcPidFS = &ProcPid{}
 
-// getFD returns the fd from *os.Root
-func (p *ProcPid) getFD() int {
-	if p.fd < 0 {
-		// Reflect into *os.Root -> .root -> .fd
-		rootVal := reflect.ValueOf(p.root).Elem().FieldByName("root")
-		rootPtr := reflect.NewAt(rootVal.Type(), unsafe.Pointer(rootVal.UnsafeAddr())).Elem()
-
-		fdField := rootPtr.Elem().FieldByName("fd")
-		fdVal := reflect.NewAt(fdField.Type(), unsafe.Pointer(fdField.UnsafeAddr())).Elem()
-
-		p.fd = int(fdVal.Int())
-	}
-	return p.fd
-}
-
 // OpenProc opens a /proc/<pid> directory and returns a ProcPidFS instance
 func OpenProcPid(pid int) (*ProcPid, error) {
 	root, err := os.OpenRoot(filepath.Join("/proc", strconv.Itoa(pid)))
@@ -88,13 +71,9 @@ func (p *ProcPid) ReadFile(path string) ([]byte, error) {
 }
 
 // ReadLink reads a symbolic link inside /proc/<pid>
-func (p *ProcPid) ReadLink(path string) (string, error) {
-	data := make([]byte, unix.PathMax)
-	n, err := unix.Readlinkat(p.getFD(), path, data)
-	if err != nil {
-		return "", &os.PathError{Op: "readlinkat", Path: fmt.Sprintf("/proc/%d/%s", p.pid, path), Err: err}
-	}
-	return string(data[:n]), nil
+func (p *ProcPid) ReadLink(name string) (string, error) {
+	rfs := p.root.FS().(fs.ReadLinkFS)
+	return rfs.ReadLink(name)
 }
 
 // PID returns the process ID
