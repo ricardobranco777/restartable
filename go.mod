@@ -1,4 +1,4 @@
-module restartable
+module github.com/ricardobranco777/restartable
 
 go 1.24
 
