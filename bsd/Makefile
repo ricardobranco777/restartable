@@ -2,9 +2,9 @@ OPSYS:sh = uname
 
 PROG= restartable
 WARNS= 3
+WARNINGS= yes
 CFLAGS+= -O2
 .if ${OPSYS} == "OpenBSD"
-CFLAGS+= -Wall -Wmissing-prototypes -Wno-uninitialized -Wstrict-prototypes
 LDADD+= -lkvm
 DPADD+= ${LIBKVM}
 .else
