@@ -190,7 +190,8 @@ type ProcessInfo struct {
 func getProcessInfo(p ProcPidFS, fullPath bool, userService bool) (*ProcessInfo, error) {
 	maps, err := p.ReadFile("maps")
 	if err != nil {
-		if errors.Is(err, unix.EACCES) {
+		// We need ESRCH since kernel 6.16
+		if errors.Is(err, unix.EACCES) || errors.Is(err, unix.ESRCH) {
 			err = nil
 		}
 		return nil, err
