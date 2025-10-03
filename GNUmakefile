@@ -6,13 +6,8 @@ all:	$(BIN)
 DOCKER	?= podman
 GO	?= go
 
-# https://github.com/golang/go/issues/64875
-arch := $(shell uname -m)
-ifeq ($(arch),s390x)
-CGO_ENABLED := 1
-else
-CGO_ENABLED ?= 0
-endif
+# https://github.com/golang/go/issues/38810
+CGO_ENABLED ?= 1
 
 $(BIN): *.go
 	CGO_ENABLED=$(CGO_ENABLED) $(GO) build -trimpath -ldflags="-s -w -buildid=" -buildmode=pie
