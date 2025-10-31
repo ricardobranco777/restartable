@@ -39,7 +39,6 @@ type ProcPidFS interface {
 // ProcPid implements ProcPidFS for real /proc/<pid> filesystem
 type ProcPid struct {
 	ProcPidFS
-	fd   int
 	pid  int
 	root *os.Root
 }
@@ -53,7 +52,7 @@ func OpenProcPid(pid int) (*ProcPid, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ProcPid{root: root, fd: -1, pid: pid}, nil
+	return &ProcPid{root: root, pid: pid}, nil
 }
 
 // Close releases the file descriptor
