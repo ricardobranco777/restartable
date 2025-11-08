@@ -89,7 +89,7 @@ var (
 // getDeleted retrieves deleted file mappings for a process
 func getDeleted(maps string) []string {
 	var files []string
-	for _, line := range strings.Split(maps, "\n") {
+	for line := range strings.SplitSeq(maps, "\n") {
 		file := regexDeleted.FindString(line)
 		if file != "" && regexExecMap.MatchString(line) && !regexIgnored.MatchString(file) {
 			files = append(files, quoteString(strings.TrimSuffix(file, " (deleted)")))
