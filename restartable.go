@@ -112,6 +112,8 @@ func getService(cgroup string, userService bool) string {
 	} else if strings.Contains(cgroup, ":name=openrc:/") {
 		// OpenRC
 		return cgroup[strings.LastIndex(cgroup, "/")+1:]
+	} else if strings.Contains(cgroup, "openrc") {
+		return cgroup[strings.LastIndex(cgroup, ".")+1:]
 	}
 	return "-"
 }
