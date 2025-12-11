@@ -82,7 +82,7 @@ func (p *ProcPid) PID() int {
 
 var (
 	regexDeleted = regexp.MustCompile(`/.* \(deleted\)$`)
-	regexIgnored = regexp.MustCompile(`^/(dev|memfd:|run| )`)
+	regexIgnored = regexp.MustCompile(`^/(dev|memfd:|run|tmp| )`)
 	regexExecMap = regexp.MustCompile(`^[0-9a-f]+-[0-9a-f]+ r(w|-)x`)
 )
 
