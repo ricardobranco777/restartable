@@ -37,7 +37,7 @@ parse_psinfo(int pid) {
 
 	if ((pwd = getpwuid(psinfo.pr_uid)) != NULL)
 		user = pwd->pw_name;
-	printf("%d\t%d\t%d\t%s\t%s\n", psinfo.pr_pid, psinfo.pr_ppid, psinfo.pr_uid, user, psinfo.pr_fname);
+	printf("%ld\t%ld\t%d\t%s\t%s\n", psinfo.pr_pid, psinfo.pr_ppid, psinfo.pr_uid, user, psinfo.pr_fname);
 	if (verbose)
 		printf("\t%s\n", psinfo.pr_psargs);
 }
